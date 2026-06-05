@@ -1,0 +1,17 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"
+      - "7881:7881/udp"
+
+  token-server:
+    build: ./token-server
+    ports:
+      - "3001:3001"
+    environment:
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+    depends_on:
+      - livekit
