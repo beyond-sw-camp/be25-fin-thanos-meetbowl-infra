@@ -1,0 +1,180 @@
+{
+  "users": [
+    {
+      "name": "meetbowl",
+      "password_hash": "WDuSrBg/wZ/JUaMth9zc7HAkWJnOeDPtdlN9qN2OZp6gtH5a",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "meetbowl",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "meetbowl.topic",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "meetbowl.dlx",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "api.transcript.final.save",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.transcript.final.created"
+      }
+    },
+    {
+      "name": "ai.minutes.generate",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.meeting.ended"
+      }
+    },
+    {
+      "name": "ai.minutes.regenerate",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.minutes.generation.requested"
+      }
+    },
+    {
+      "name": "ai.index.document",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.document.index.requested"
+      }
+    },
+    {
+      "name": "dlq.api.transcript.final.save",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.ai.minutes.generate",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.ai.minutes.regenerate",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.ai.index.document",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
+      "destination": "api.transcript.final.save",
+      "destination_type": "queue",
+      "routing_key": "transcript.final.created",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
+      "destination": "ai.minutes.generate",
+      "destination_type": "queue",
+      "routing_key": "meeting.ended",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
+      "destination": "ai.minutes.regenerate",
+      "destination_type": "queue",
+      "routing_key": "minutes.generation.requested",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
+      "destination": "ai.index.document",
+      "destination_type": "queue",
+      "routing_key": "document.index.requested",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.api.transcript.final.save",
+      "destination_type": "queue",
+      "routing_key": "dlq.transcript.final.created",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.ai.minutes.generate",
+      "destination_type": "queue",
+      "routing_key": "dlq.meeting.ended",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.ai.minutes.regenerate",
+      "destination_type": "queue",
+      "routing_key": "dlq.minutes.generation.requested",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.ai.index.document",
+      "destination_type": "queue",
+      "routing_key": "dlq.document.index.requested",
+      "arguments": {}
+    }
+  ]
+}

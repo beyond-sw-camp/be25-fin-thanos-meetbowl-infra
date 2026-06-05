@@ -1,17 +1,106 @@
-services:
-  livekit:
-    image: livekit/livekit-server:latest
-    command: --dev --bind 0.0.0.0
-    ports:
-      - "7880:7880"
-      - "7881:7881/udp"
+name: meetbowl-infra
 
-  token-server:
-    build: ./token-server
-    ports:
-      - "3001:3001"
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: meetbowl-mariadb
+    restart: unless-stopped
     environment:
-      LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: secret
-    depends_on:
-      - livekit
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-local-root-password}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-meetbowl}
+      MARIADB_USER: ${MARIADB_USER:-meetbowl}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-local-meetbowl-password}
+      TZ: UTC
+    ports:
+      - "${MARIADB_PORT:-3306}:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mariadb-admin ping -h 127.0.0.1 -u root -p$${MARIADB_ROOT_PASSWORD} --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - meetbowl-runtime
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: meetbowl-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - meetbowl-runtime
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: meetbowl-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-meetbowl}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-/}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - meetbowl-runtime
+
+  livekit:
+    image: livekit/livekit-server:v1.8
+    container_name: meetbowl-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit/livekit.yaml
+    ports:
+      - "${LIVEKIT_HTTP_PORT:-7880}:7880"
+      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
+      - "${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp"
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    networks:
+      - meetbowl-runtime
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.5
+    container_name: meetbowl-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - meetbowl-runtime
+
+networks:
+  meetbowl-runtime:
+    name: meetbowl-runtime
+
+volumes:
+  mariadb-data:
+  redis-data:
+  rabbitmq-data:
+  qdrant-data:
