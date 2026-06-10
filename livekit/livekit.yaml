@@ -8,8 +8,5 @@ rtc:
   port_range_end: 7882
   use_external_ip: false
 
-keys:
-  devkey: secret
-
 logging:
   level: info

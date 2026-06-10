@@ -74,12 +74,54 @@ services:
     container_name: meetbowl-livekit
     restart: unless-stopped
     command: --config /etc/livekit/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-local-livekit-secret-change-me-123456}"
+      NODE_IP: ${LIVEKIT_NODE_IP:-127.0.0.1}
     ports:
       - "${LIVEKIT_HTTP_PORT:-7880}:7880"
       - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
       - "${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp"
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    networks:
+      - meetbowl-runtime
+
+  stt:
+    profiles: ["stt"]
+    build:
+      context: ../meetbowl-stt
+    container_name: meetbowl-stt
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      INTERNAL_TOKEN: ${STT_INTERNAL_TOKEN:-local-internal-token-change-me}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_REALTIME_TRANSLATION_MODEL: ${OPENAI_REALTIME_TRANSLATION_MODEL:-gpt-realtime-translate}
+      LIVEKIT_URL: ${STT_LIVEKIT_URL:-http://livekit:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-local-livekit-secret-change-me-123456}
+      LIVEKIT_AGENT_IDENTITY_PREFIX: ${LIVEKIT_AGENT_IDENTITY_PREFIX:-meetbowl-stt}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-meetbowl}:${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}@rabbitmq:5672/${RABBITMQ_DEFAULT_VHOST:-}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-meetbowl.topic}
+      REDIS_URL: redis://redis:6379
+      REDIS_FEEDBACK_CONSUMER_GROUP: ${REDIS_FEEDBACK_CONSUMER_GROUP:-stt-feedback-relay}
+      REDIS_FEEDBACK_CONSUMER_NAME: ${REDIS_FEEDBACK_CONSUMER_NAME:-stt-local}
+      REDIS_STREAM_MAX_LENGTH: ${REDIS_STREAM_MAX_LENGTH:-2000}
+      VAD_RMS_THRESHOLD: ${VAD_RMS_THRESHOLD:-0.015}
+      VAD_SILENCE_MS: ${VAD_SILENCE_MS:-700}
+      SEGMENT_NO_DELTA_TIMEOUT_MS: ${SEGMENT_NO_DELTA_TIMEOUT_MS:-1200}
+      TRANSLATION_GRACE_MS: ${TRANSLATION_GRACE_MS:-500}
+      MAX_SEGMENT_DURATION_MS: ${MAX_SEGMENT_DURATION_MS:-15000}
+    ports:
+      - "${STT_PORT:-3000}:3000"
+    depends_on:
+      livekit:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - meetbowl-runtime
 
