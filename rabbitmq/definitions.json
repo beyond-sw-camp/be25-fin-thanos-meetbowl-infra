@@ -48,6 +48,8 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 3,
         "x-dead-letter-exchange": "meetbowl.dlx",
         "x-dead-letter-routing-key": "dlq.transcript.final.created"
       }
