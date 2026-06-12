@@ -49,6 +49,7 @@ services:
     image: rabbitmq:3.13-management
     container_name: meetbowl-rabbitmq
     restart: unless-stopped
+    entrypoint: ["/usr/local/bin/meetbowl-rabbitmq-entrypoint"]
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-meetbowl}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-local-rabbitmq-password}
@@ -60,6 +61,7 @@ services:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq/entrypoint.sh:/usr/local/bin/meetbowl-rabbitmq-entrypoint:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
