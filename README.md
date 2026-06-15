@@ -103,6 +103,7 @@ Queue:
 
 ```text
 api.transcript.final.save
+api.minutes.generated
 ai.minutes.generate
 ai.minutes.regenerate
 ai.index.document
