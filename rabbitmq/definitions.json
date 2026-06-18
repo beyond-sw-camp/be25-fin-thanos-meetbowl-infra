@@ -55,6 +55,18 @@
       }
     },
     {
+      "name": "api.minutes.generated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 3,
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.minutes.generated"
+      }
+    },
+    {
       "name": "ai.minutes.generate",
       "vhost": "/",
       "durable": true,
@@ -86,6 +98,13 @@
     },
     {
       "name": "dlq.api.transcript.final.save",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.api.minutes.generated",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
@@ -125,6 +144,14 @@
     {
       "source": "meetbowl.topic",
       "vhost": "/",
+      "destination": "api.minutes.generated",
+      "destination_type": "queue",
+      "routing_key": "minutes.generated",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
       "destination": "ai.minutes.generate",
       "destination_type": "queue",
       "routing_key": "meeting.ended",
@@ -152,6 +179,14 @@
       "destination": "dlq.api.transcript.final.save",
       "destination_type": "queue",
       "routing_key": "dlq.transcript.final.created",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.api.minutes.generated",
+      "destination_type": "queue",
+      "routing_key": "dlq.minutes.generated",
       "arguments": {}
     },
     {
