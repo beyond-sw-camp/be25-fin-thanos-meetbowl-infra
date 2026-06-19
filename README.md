@@ -24,6 +24,12 @@ cp .env.example .env
 docker compose up -d
 ```
 
+LiveKit/STT를 같이 테스트할 때는 현재 호스트 IP를 자동 주입하는 wrapper를 우선 사용한다.
+
+```bash
+./scripts/compose-with-livekit-ip.sh --profile stt up -d
+```
+
 STT 서버까지 실행하려면 실제 `OPENAI_API_KEY`를 로컬 `.env`에 주입한 뒤 profile을
 사용한다.
 
@@ -90,6 +96,15 @@ STT까지 Compose profile로 실행할 때는 브라우저가 실행되는 호�
 양쪽에서 접근 가능한 LAN IP를 `LIVEKIT_NODE_IP`로 지정해야 한다. RTC TCP `7881`과
 UDP `7882`도 해당 IP에서 접근 가능해야 한다.
 
+로컬에서 네트워크가 자주 바뀌면 `.env`에 IP를 하드코딩하지 말고 아래 wrapper를 사용한다.
+이 스크립트는 macOS 기본 네트워크 인터페이스의 IPv4를 감지해서 `LIVEKIT_NODE_IP` 환경
+변수로 `docker compose`에 주입한다.
+
+```bash
+./scripts/compose-with-livekit-ip.sh up -d livekit
+./scripts/compose-with-livekit-ip.sh --profile stt up -d livekit stt
+```
+
 ## RabbitMQ 계약
 
 RabbitMQ 설정은 `docs/event-contract.md`의 Exchange / Queue 기준을 반영한다.
@@ -105,6 +120,7 @@ Queue:
 
 ```text
 api.transcript.final.save
+api.minutes.generated
 ai.minutes.generate
 ai.minutes.regenerate
 ai.index.document
