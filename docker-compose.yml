@@ -141,6 +141,21 @@ services:
     networks:
       - meetbowl-runtime
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: meetbowl-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "${ELASTICSEARCH_HTTP_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - meetbowl-runtime
+
   nginx:
     image: nginx:1.27-alpine
     container_name: meetbowl-nginx
@@ -164,3 +179,4 @@ volumes:
   redis-data:
   rabbitmq-data:
   qdrant-data:
+  elasticsearch-data:
