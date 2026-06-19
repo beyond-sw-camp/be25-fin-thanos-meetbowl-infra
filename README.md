@@ -70,7 +70,9 @@ RabbitMQ Management 기본 계정:
 meetbowl / local-rabbitmq-password
 ```
 
-이 계정은 `rabbitmq/definitions.json`에 로컬 개발용 계정으로 정의되어 있다. 비밀번호를 바꾸려면 `.env`의 URL만 바꾸지 말고 RabbitMQ definitions의 user hash도 함께 갱신해야 한다.
+이 계정은 `.env`의 `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`,
+`RABBITMQ_DEFAULT_VHOST`로 설정한다. `rabbitmq/definitions.json`은 exchange,
+queue, binding만 정의하고 비밀번호 해시는 고정하지 않는다.
 
 LiveKit 로컬 개발 키는 `.env`에서 런타임에 주입한다.
 
