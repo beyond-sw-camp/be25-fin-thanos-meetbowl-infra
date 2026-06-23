@@ -4,6 +4,11 @@ Meetbowl 로컬 개발에 필요한 공용 런타임을 Docker Compose로 실행
 
 이 레포는 실행 환경만 담당한다. 비즈니스 로직, API 계약, 이벤트 이름, DB 스키마 소유권은 각 서버와 루트 문서를 따른다.
 
+운영 배포 구조를 확정한 문서는 [docs/production-deployment-architecture.md](./docs/production-deployment-architecture.md) 를 참고한다.
+
+운영 compose는 `shared/compose.prod.yml`와 서비스별 overlay(`be/compose.prod.yml` 등)로 분리한다.
+운영 배포 스크립트는 `scripts/deploy-be.sh`처럼 infra 레포 루트를 기준으로 실행한다.
+
 ## 구성
 
 | Service | Port | Owner / Purpose |
