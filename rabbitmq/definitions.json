@@ -1,24 +1,7 @@
 {
-  "users": [
-    {
-      "name": "meetbowl",
-      "password_hash": "WDuSrBg/wZ/JUaMth9zc7HAkWJnOeDPtdlN9qN2OZp6gtH5a",
-      "hashing_algorithm": "rabbit_password_hashing_sha256",
-      "tags": ["administrator"]
-    }
-  ],
   "vhosts": [
     {
       "name": "/"
-    }
-  ],
-  "permissions": [
-    {
-      "user": "meetbowl",
-      "vhost": "/",
-      "configure": ".*",
-      "write": ".*",
-      "read": ".*"
     }
   ],
   "exchanges": [
@@ -48,8 +31,22 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 3,
         "x-dead-letter-exchange": "meetbowl.dlx",
         "x-dead-letter-routing-key": "dlq.transcript.final.created"
+      }
+    },
+    {
+      "name": "api.minutes.generated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 3,
+        "x-dead-letter-exchange": "meetbowl.dlx",
+        "x-dead-letter-routing-key": "dlq.minutes.generated"
       }
     },
     {
@@ -90,6 +87,13 @@
       "arguments": {}
     },
     {
+      "name": "dlq.api.minutes.generated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
       "name": "dlq.ai.minutes.generate",
       "vhost": "/",
       "durable": true,
@@ -123,6 +127,14 @@
     {
       "source": "meetbowl.topic",
       "vhost": "/",
+      "destination": "api.minutes.generated",
+      "destination_type": "queue",
+      "routing_key": "minutes.generated",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.topic",
+      "vhost": "/",
       "destination": "ai.minutes.generate",
       "destination_type": "queue",
       "routing_key": "meeting.ended",
@@ -150,6 +162,14 @@
       "destination": "dlq.api.transcript.final.save",
       "destination_type": "queue",
       "routing_key": "dlq.transcript.final.created",
+      "arguments": {}
+    },
+    {
+      "source": "meetbowl.dlx",
+      "vhost": "/",
+      "destination": "dlq.api.minutes.generated",
+      "destination_type": "queue",
+      "routing_key": "dlq.minutes.generated",
       "arguments": {}
     },
     {

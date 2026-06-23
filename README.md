@@ -4,6 +4,11 @@ Meetbowl 로컬 개발에 필요한 공용 런타임을 Docker Compose로 실행
 
 이 레포는 실행 환경만 담당한다. 비즈니스 로직, API 계약, 이벤트 이름, DB 스키마 소유권은 각 서버와 루트 문서를 따른다.
 
+운영 배포 구조를 확정한 문서는 [docs/production-deployment-architecture.md](./docs/production-deployment-architecture.md) 를 참고한다.
+
+운영 compose는 `shared/compose.prod.yml`와 서비스별 overlay(`be/compose.prod.yml` 등)로 분리한다.
+운영 배포 스크립트는 `scripts/deploy-be.sh`처럼 infra 레포 루트를 기준으로 실행한다.
+
 ## 구성
 
 | Service | Port | Owner / Purpose |
@@ -22,6 +27,19 @@ MinIO는 실행하지 않는다. 파일 원본은 외부 S3 또는 S3 호환 스
 ```bash
 cp .env.example .env
 docker compose up -d
+```
+
+LiveKit/STT를 같이 테스트할 때는 현재 호스트 IP를 자동 주입하는 wrapper를 우선 사용한다.
+
+```bash
+./scripts/compose-with-livekit-ip.sh --profile stt up -d
+```
+
+STT 서버까지 실행하려면 실제 `OPENAI_API_KEY`를 로컬 `.env`에 주입한 뒤 profile을
+사용한다.
+
+```bash
+docker compose --profile stt up -d
 ```
 
 상태 확인:
@@ -53,7 +71,8 @@ docker compose down -v
 | Redis | `redis://localhost:6379` |
 | RabbitMQ AMQP | `amqp://meetbowl:local-rabbitmq-password@localhost:5672/` |
 | RabbitMQ Management | `http://localhost:15672` |
-| LiveKit | `http://localhost:7880` |
+| LiveKit public URL | `http://localhost:7880` |
+| STT API(profile 사용 시) | `http://localhost:3000` |
 | Qdrant | `http://localhost:6333` |
 
 RabbitMQ Management 기본 계정:
@@ -62,15 +81,34 @@ RabbitMQ Management 기본 계정:
 meetbowl / local-rabbitmq-password
 ```
 
-이 계정은 `rabbitmq/definitions.json`에 로컬 개발용 계정으로 정의되어 있다. 비밀번호를 바꾸려면 `.env`의 URL만 바꾸지 말고 RabbitMQ definitions의 user hash도 함께 갱신해야 한다.
+이 계정은 `.env`의 `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`,
+`RABBITMQ_DEFAULT_VHOST`로 설정한다. `rabbitmq/definitions.json`은 exchange,
+queue, binding만 정의하고 비밀번호 해시는 고정하지 않는다.
 
-LiveKit 로컬 개발 키:
+LiveKit 로컬 개발 키는 `.env`에서 런타임에 주입한다.
 
 ```text
-devkey / secret
+LIVEKIT_API_KEY / LIVEKIT_API_SECRET
 ```
 
 사용자 회의 참여 토큰 발급은 `meetbowl-be` 책임이다. infra에 별도 token-server를 두지 않는다.
+`meetbowl-stt`는 같은 key/secret으로 server participant token을 생성하되, secret을
+프론트에 전달하지 않는다.
+
+LiveKit은 Docker 내부 IP를 ICE candidate로 광고하지 않도록 `NODE_IP`를 명시적으로
+주입한다. STT를 호스트에서 실행하면 `LIVEKIT_NODE_IP=127.0.0.1`을 사용할 수 있다.
+STT까지 Compose profile로 실행할 때는 브라우저가 실행되는 호스트와 Docker 컨테이너
+양쪽에서 접근 가능한 LAN IP를 `LIVEKIT_NODE_IP`로 지정해야 한다. RTC TCP `7881`과
+UDP `7882`도 해당 IP에서 접근 가능해야 한다.
+
+로컬에서 네트워크가 자주 바뀌면 `.env`에 IP를 하드코딩하지 말고 아래 wrapper를 사용한다.
+이 스크립트는 macOS 기본 네트워크 인터페이스의 IPv4를 감지해서 `LIVEKIT_NODE_IP` 환경
+변수로 `docker compose`에 주입한다.
+
+```bash
+./scripts/compose-with-livekit-ip.sh up -d livekit
+./scripts/compose-with-livekit-ip.sh --profile stt up -d livekit stt
+```
 
 ## RabbitMQ 계약
 
@@ -87,12 +125,22 @@ Queue:
 
 ```text
 api.transcript.final.save
+api.minutes.generated
 ai.minutes.generate
 ai.minutes.regenerate
 ai.index.document
 ```
 
 각 queue에는 `meetbowl.dlx`로 dead-letter 설정이 들어가며, DLQ는 운영 확인용으로 별도 생성한다.
+
+`api.transcript.final.save`는 quorum queue이며 `x-delivery-limit=3`을 사용한다. Consumer가
+처리에 실패해 메시지를 재전달하면 delivery limit 이후
+`dlq.api.transcript.final.save`로 이동한다. STT publisher는 persistent message와
+publisher confirm을 사용해야 한다.
+
+기존 로컬 볼륨에 classic `api.transcript.final.save` queue가 이미 있으면 queue type은
+제자리에서 quorum으로 변경되지 않는다. 로컬 데이터 삭제가 허용되는 경우
+`docker compose down -v` 후 다시 시작해야 새 정의가 적용된다.
 
 ## Redis Stream 기준
 
@@ -107,6 +155,28 @@ meeting:{meetingId}:status
 ```
 
 Redis Stream 이벤트는 장기 보관 데이터가 아니다. 최종 저장이 필요한 데이터는 RabbitMQ 또는 `meetbowl-be` REST API를 통해 저장한다.
+
+STT는 `meeting.feedback.segment.created`를 segment 한 건씩 발행한다. AI 서버가
+meeting별 rolling window를 구성한다. Stream producer는 approximate `MAXLEN`을 사용해
+무제한 증가를 방지한다.
+
+## STT 연결 URL
+
+호스트에서 STT를 실행할 때:
+
+```text
+LIVEKIT_URL=http://localhost:7880
+RABBITMQ_URL=amqp://meetbowl:...@localhost:5672/
+REDIS_URL=redis://localhost:6379
+```
+
+Compose profile에서 실행할 때는 service name 기반 URL을 자동으로 사용한다.
+
+```text
+LIVEKIT_URL=http://livekit:7880
+RABBITMQ_URL=amqp://meetbowl:...@rabbitmq:5672/
+REDIS_URL=redis://redis:6379
+```
 
 ## S3 기준
 
