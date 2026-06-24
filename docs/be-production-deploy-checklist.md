@@ -91,6 +91,7 @@
 | `/meetbowl/prod/be/MEETBOWL_DB_PASSWORD` | `********` | DB 비밀번호 |
 | `/meetbowl/prod/be/MEETBOWL_JWT_SECRET` | `********` | JWT secret |
 | `/meetbowl/prod/be/MEETBOWL_INTERNAL_TOKEN` | `********` | 서버 간 내부 토큰 |
+| `/meetbowl/prod/be/MEETBOWL_CORS_ALLOWED_ORIGIN_PATTERNS` | `https://app.meetbowl.com,https://*.vercel.app` | 브라우저 CORS 허용 origin 패턴 |
 | `/meetbowl/prod/be/MEETBOWL_STT_BASE_URL` | `http://meetbowl-stt:3000/api/v1` | STT 내부 호출 주소 |
 | `/meetbowl/prod/be/MEETBOWL_AI_BASE_URL` | `http://meetbowl-ai:8000` | AI 내부 호출 주소 |
 | `/meetbowl/prod/be/S3_BUCKET` | `meetbowl-prod-files` | 파일 저장 버킷 |

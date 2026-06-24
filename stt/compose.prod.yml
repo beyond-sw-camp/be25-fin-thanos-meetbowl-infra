@@ -1,0 +1,57 @@
+services:
+  stt:
+    image: ${MEETBOWL_STT_IMAGE:?}
+    container_name: meetbowl-stt
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-3000}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?}
+      ENABLE_TRANSLATION: ${ENABLE_TRANSLATION:-false}
+      OPENAI_REALTIME_TRANSLATION_MODEL: ${OPENAI_REALTIME_TRANSLATION_MODEL:-gpt-realtime-translate}
+      OPENAI_REALTIME_TRANSCRIPTION_MODEL: ${OPENAI_REALTIME_TRANSCRIPTION_MODEL:-gpt-realtime-whisper}
+      OPENAI_REALTIME_TRANSCRIPTION_DELAY: ${OPENAI_REALTIME_TRANSCRIPTION_DELAY:-medium}
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://livekit:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?}
+      LIVEKIT_AGENT_IDENTITY_PREFIX: ${LIVEKIT_AGENT_IDENTITY_PREFIX:-meetbowl-stt}
+      RABBITMQ_URL: ${RABBITMQ_URL:?}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-meetbowl.topic}
+      REDIS_URL: ${REDIS_URL:?}
+      REDIS_FEEDBACK_CONSUMER_GROUP: ${REDIS_FEEDBACK_CONSUMER_GROUP:-stt-feedback-relay}
+      REDIS_FEEDBACK_CONSUMER_NAME: ${REDIS_FEEDBACK_CONSUMER_NAME:-stt-prod}
+      REDIS_STREAM_MAX_LENGTH: ${REDIS_STREAM_MAX_LENGTH:-2000}
+      VAD_RMS_THRESHOLD: ${VAD_RMS_THRESHOLD:-0.008}
+      VAD_SILENCE_MS: ${VAD_SILENCE_MS:-520}
+      SEGMENT_NO_DELTA_TIMEOUT_MS: ${SEGMENT_NO_DELTA_TIMEOUT_MS:-1600}
+      TRANSLATION_GRACE_MS: ${TRANSLATION_GRACE_MS:-480}
+      MAX_SEGMENT_DURATION_MS: ${MAX_SEGMENT_DURATION_MS:-9000}
+      STREAMING_PUBLISH_MIN_INTERVAL_MS: ${STREAMING_PUBLISH_MIN_INTERVAL_MS:-320}
+      TRACK_SWITCH_GRACE_MS: ${TRACK_SWITCH_GRACE_MS:-120}
+    ports:
+      - "${MEETBOWL_STT_BIND_ADDRESS:-127.0.0.1}:${MEETBOWL_STT_PORT:-3000}:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - meetbowl-runtime
+
+networks:
+  meetbowl-runtime:
+    name: meetbowl-prod-runtime
