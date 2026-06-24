@@ -92,6 +92,7 @@
 | `/meetbowl/prod/be/MEETBOWL_JWT_SECRET` | `********` | JWT secret |
 | `/meetbowl/prod/be/MEETBOWL_INTERNAL_TOKEN` | `********` | 서버 간 내부 토큰 |
 | `/meetbowl/prod/be/MEETBOWL_CORS_ALLOWED_ORIGIN_PATTERNS` | `https://app.meetbowl.com,https://*.vercel.app` | 브라우저 CORS 허용 origin 패턴 |
+| `/meetbowl/prod/be/MEETBOWL_LIVEKIT_URL` | `https://app.meetbowl.com/livekit` | 프론트 브라우저가 실제로 접속할 LiveKit 공개 URL |
 | `/meetbowl/prod/be/MEETBOWL_STT_BASE_URL` | `http://meetbowl-stt:3000/api/v1` | STT 내부 호출 주소 |
 | `/meetbowl/prod/be/MEETBOWL_AI_BASE_URL` | `http://meetbowl-ai:8000` | AI 내부 호출 주소 |
 | `/meetbowl/prod/be/S3_BUCKET` | `meetbowl-prod-files` | 파일 저장 버킷 |
@@ -110,7 +111,6 @@
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_VHOST` | `/` | |
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_EXCHANGE` | `meetbowl.topic` | |
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_MINUTES_GENERATED_QUEUE` | `api.minutes.generated` | |
-| `/meetbowl/prod/be/MEETBOWL_LIVEKIT_URL` | `http://livekit:7880` | 내부 네트워크 기준 |
 | `/meetbowl/prod/be/MEETBOWL_LIVEKIT_TOKEN_EXPIRATION_SECONDS` | `3600` | |
 | `/meetbowl/prod/be/MEETBOWL_STT_INTERNAL_TOKEN` | `MEETBOWL_INTERNAL_TOKEN` 재사용 가능 | |
 | `/meetbowl/prod/be/MEETBOWL_ELASTICSEARCH_URL` | `http://elasticsearch:9200` | |
