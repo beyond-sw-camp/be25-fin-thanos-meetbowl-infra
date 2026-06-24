@@ -168,9 +168,7 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 운영 전환 전에 해결해야 하는 현재 갭은 아래와 같다.
 
 1. `meetbowl-infra/docker-compose.yml`은 로컬 개발용이며 `mariadb`를 포함한다.
-2. `meetbowl-ai`는 현재 Dockerfile이 없다.
-3. `meetbowl-ai` 운영 compose overlay와 배포 스크립트가 아직 없다.
-4. 운영 Parameter Store key 목록과 EC2 초기 세팅 문서는 서버별로 계속 확장해야 한다.
+2. 운영 Parameter Store key 목록과 EC2 초기 세팅 문서는 서버별로 계속 확장해야 한다.
 
 ---
 
@@ -188,4 +186,4 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 
 ## 다음 단계
 
-2단계는 `meetbowl-be` 운영 compose/env 계약과 EC2 배포 스크립트 정리다.
+2단계는 `meetbowl-ai`, `meetbowl-stt`, `meetbowl-be` 운영 compose/env 계약과 EC2 배포 스크립트를 실제 값으로 검증하는 단계다.
