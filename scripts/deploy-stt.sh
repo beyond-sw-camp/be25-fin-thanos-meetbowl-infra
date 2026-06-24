@@ -10,7 +10,7 @@ AWS_REGION="${AWS_REGION:?AWS_REGION is required}"
 ECR_REPOSITORY="${ECR_REPOSITORY:?ECR_REPOSITORY is required}"
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
 SSM_SHARED_PREFIX="${SSM_SHARED_PREFIX:-/meetbowl/prod/shared}"
-SSM_BE_PREFIX="${SSM_BE_PREFIX:-/meetbowl/prod/be}"
+SSM_STT_PREFIX="${SSM_STT_PREFIX:-/meetbowl/prod/stt}"
 
 mkdir -p "${RUNTIME_DIR}"
 
@@ -36,11 +36,11 @@ write_ssm_env_file() {
 }
 
 write_ssm_env_file "${SSM_SHARED_PREFIX}" "${RUNTIME_DIR}/shared.env"
-write_ssm_env_file "${SSM_BE_PREFIX}" "${RUNTIME_DIR}/be.env"
+write_ssm_env_file "${SSM_STT_PREFIX}" "${RUNTIME_DIR}/stt.env"
 
 set -a
 source "${RUNTIME_DIR}/shared.env"
-source "${RUNTIME_DIR}/be.env"
+source "${RUNTIME_DIR}/stt.env"
 set +a
 
 require_env() {
@@ -51,66 +51,49 @@ require_env() {
   fi
 }
 
-require_file() {
-  local path="$1"
-  if [[ ! -f "${path}" ]]; then
-    echo "required file is missing: ${path}" >&2
-    exit 1
-  fi
-}
-
 for key in \
-  NGINX_CERTS_DIR \
-  RABBITMQ_DEFAULT_USER \
-  RABBITMQ_DEFAULT_PASS \
+  INTERNAL_TOKEN \
+  OPENAI_API_KEY \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
-  LIVEKIT_NODE_IP \
-  MEETBOWL_DB_URL \
-  MEETBOWL_DB_USERNAME \
-  MEETBOWL_DB_PASSWORD \
-  MEETBOWL_JWT_SECRET \
-  MEETBOWL_INTERNAL_TOKEN \
-  MEETBOWL_CORS_ALLOWED_ORIGIN_PATTERNS \
-  MEETBOWL_STT_BASE_URL \
-  MEETBOWL_AI_BASE_URL \
-  S3_BUCKET
+  RABBITMQ_URL \
+  REDIS_URL
 do
   require_env "${key}"
 done
 
-require_file "${NGINX_CERTS_DIR}/fullchain.pem"
-require_file "${NGINX_CERTS_DIR}/privkey.pem"
-
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query 'Account' --output text)"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-MEETBOWL_BE_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-export MEETBOWL_BE_IMAGE
+MEETBOWL_STT_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+export MEETBOWL_STT_IMAGE
 
 aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/stt/compose.prod.yml" \
   config -q
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  pull be
+  -f "${INFRA_DIR}/stt/compose.prod.yml" \
+  pull stt
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  up -d
+  -f "${INFRA_DIR}/stt/compose.prod.yml" \
+  up -d stt
+
+STT_PORT="${MEETBOWL_STT_PORT:-3000}"
 
 for _ in $(seq 1 30); do
-  if curl -kfsS "https://127.0.0.1:${NGINX_HTTPS_PORT:-443}/healthz" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:${STT_PORT}/api/v1/health" >/dev/null \
+    && curl -fsS "http://127.0.0.1:${STT_PORT}/api/v1/health/provider" >/dev/null; then
     exit 0
   fi
   sleep 2
 done
 
-echo "smoke test failed: nginx /healthz did not respond in time" >&2
+echo "smoke test failed: stt health endpoints did not respond in time" >&2
 exit 1
