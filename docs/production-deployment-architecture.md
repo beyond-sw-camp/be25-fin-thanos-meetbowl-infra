@@ -124,10 +124,12 @@ meetbowl-stt
 meetbowl-infra/
   shared/compose.prod.yml
   be/compose.prod.yml
+  stt/compose.prod.yml
   nginx/
     prod.conf
   scripts/
     deploy-be.sh
+    deploy-stt.sh
 ```
 
 운영 compose 원칙:
@@ -167,9 +169,8 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 
 1. `meetbowl-infra/docker-compose.yml`은 로컬 개발용이며 `mariadb`를 포함한다.
 2. `meetbowl-ai`는 현재 Dockerfile이 없다.
-3. `meetbowl-stt` 운영 Dockerfile/compose overlay가 아직 없다.
-4. 운영 Parameter Store key 목록과 EC2 초기 세팅 문서가 아직 없다.
-5. 서버별 배포 스크립트와 smoke test를 서비스별로 확장해야 한다.
+3. `meetbowl-ai` 운영 compose overlay와 배포 스크립트가 아직 없다.
+4. 운영 Parameter Store key 목록과 EC2 초기 세팅 문서는 서버별로 계속 확장해야 한다.
 
 ---
 
