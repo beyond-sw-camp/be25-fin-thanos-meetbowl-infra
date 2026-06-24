@@ -43,6 +43,16 @@ source "${RUNTIME_DIR}/shared.env"
 source "${RUNTIME_DIR}/stt.env"
 set +a
 
+# 운영 전환 과정에서 STT internal token key 이름이 환경마다 다를 수 있다.
+# 우선순위는 INTERNAL_TOKEN -> STT_INTERNAL_TOKEN -> MEETBOWL_STT_INTERNAL_TOKEN 순으로 둔다.
+if [[ -z "${INTERNAL_TOKEN:-}" ]]; then
+  if [[ -n "${STT_INTERNAL_TOKEN:-}" ]]; then
+    export INTERNAL_TOKEN="${STT_INTERNAL_TOKEN}"
+  elif [[ -n "${MEETBOWL_STT_INTERNAL_TOKEN:-}" ]]; then
+    export INTERNAL_TOKEN="${MEETBOWL_STT_INTERNAL_TOKEN}"
+  fi
+fi
+
 require_env() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then

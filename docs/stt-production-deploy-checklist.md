@@ -73,7 +73,7 @@
 
 | SSM Key | 예시 값 | 용도 |
 |---|---|---|
-| `/meetbowl/prod/stt/INTERNAL_TOKEN` | `********` | BE가 STT internal API 호출 시 맞춰야 하는 토큰 |
+| `/meetbowl/prod/stt/INTERNAL_TOKEN` | `********` | BE가 STT internal API 호출 시 맞춰야 하는 토큰. 권장 표준 키 |
 | `/meetbowl/prod/stt/OPENAI_API_KEY` | `sk-...` | OpenAI Realtime 인증 |
 | `/meetbowl/prod/stt/RABBITMQ_URL` | `amqp://meetbowl:***@rabbitmq:5672/` | finalized transcript 발행 경로 |
 | `/meetbowl/prod/stt/REDIS_URL` | `redis://redis:6379` | Redis Stream 연결 |
@@ -105,6 +105,9 @@
 | `/meetbowl/prod/stt/TRACK_SWITCH_GRACE_MS` | `120` | |
 
 `INTERNAL_TOKEN` 값은 `meetbowl-be`의 `MEETBOWL_STT_INTERNAL_TOKEN`과 동일해야 한다.
+운영 전환 중이라면 임시로 `/meetbowl/prod/stt/STT_INTERNAL_TOKEN` 또는
+`/meetbowl/prod/stt/MEETBOWL_STT_INTERNAL_TOKEN`도 읽도록 호환되어 있지만, 최종 표준은
+`/meetbowl/prod/stt/INTERNAL_TOKEN` 하나로 정리하는 편이 낫다.
 
 ---
 
