@@ -116,6 +116,7 @@
 | `/meetbowl/prod/ai/S3_ENDPOINT` | 빈 값 | AWS S3면 비워둘 수 있음 |
 | `/meetbowl/prod/ai/AWS_ACCESS_KEY_ID` | 빈 값 | EC2 IAM Role 사용 시 불필요 |
 | `/meetbowl/prod/ai/AWS_SECRET_ACCESS_KEY` | 빈 값 | EC2 IAM Role 사용 시 불필요 |
+| `/meetbowl/prod/ai/FEEDBACK_DEMO_MODE` | `false` | E2E 검증 시에만 임시 활성화. 권한/근거 필터는 유지됨 |
 | `/meetbowl/prod/ai/FEEDBACK_WINDOW_MAX_SEGMENTS` | `8` | |
 | `/meetbowl/prod/ai/FEEDBACK_WINDOW_MAX_SECONDS` | `45` | |
 | `/meetbowl/prod/ai/FEEDBACK_MIN_SEGMENTS` | `4` | |
@@ -133,6 +134,9 @@
 
 `INTERNAL_TOKEN` 값은 `meetbowl-be`의 `MEETBOWL_INTERNAL_TOKEN`과 동일해야 한다.
 `BE_BASE_URL`은 `be` compose service 기준 `http://be:8080`을 권장한다.
+실시간 피드백 E2E 검증 시 `FEEDBACK_DEMO_MODE=true`로 재배포할 수 있다. 현재 인증 참가자
+전원이 열람 가능한 과거 승인 회의록이 Qdrant에 색인되어 있어야 하며, 검증 직후
+`false`로 복구한다.
 
 ---
 
