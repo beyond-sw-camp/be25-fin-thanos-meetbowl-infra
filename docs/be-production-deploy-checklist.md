@@ -184,6 +184,30 @@ GitHub Actions 자동 배포 전에 EC2에서 아래를 먼저 확인하는 편�
 5. `curl -k https://127.0.0.1/healthz`
 6. BE 로그에서 Flyway migration, datasource 연결, RabbitMQ 연결 확인
 
+### 알림 SSE 점검
+
+알림 SSE는 `GET /api/v1/notifications/subscribe`를 사용한다. 브라우저 `EventSource`가
+Authorization 헤더를 설정할 수 없으므로 access token을 `token` query parameter로 전달한다.
+토큰 값은 명령 기록이나 공유 로그에 남기지 않는다.
+
+```bash
+read -s MEETBOWL_TEST_ACCESS_TOKEN
+curl -kN \
+  -H 'Accept: text/event-stream' \
+  --get \
+  --data-urlencode "token=${MEETBOWL_TEST_ACCESS_TOKEN}" \
+  https://127.0.0.1/api/v1/notifications/subscribe
+unset MEETBOWL_TEST_ACCESS_TOKEN
+```
+
+확인 항목:
+
+1. 연결 직후 `event: ping`, `data: connected`가 즉시 전달된다.
+2. 연결 유지 중 약 30초마다 `event: ping`, `data: keepalive`가 전달된다.
+3. 알림 생성 시 `event: notification`이 buffering 없이 전달된다.
+4. Nginx access log에 `/api/v1/notifications/subscribe?token=...` 요청이 남지 않는다.
+5. 약 30분 후 BE emitter timeout으로 연결이 종료되며 브라우저 `EventSource`가 재접속한다.
+
 ---
 
 ## 오늘 기준 남은 작업

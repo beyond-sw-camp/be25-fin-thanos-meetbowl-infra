@@ -106,6 +106,18 @@ docker compose \
   -f "${INFRA_DIR}/be/compose.prod.yml" \
   up -d
 
+# bind mount된 Nginx 설정 변경은 컨테이너 재생성 없이 반영되지 않을 수 있다.
+# 먼저 문법과 upstream 해석을 검증한 뒤 graceful reload하여 기존 연결 중단을 피한다.
+docker compose \
+  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  exec -T nginx nginx -t
+
+docker compose \
+  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  exec -T nginx nginx -s reload
+
 for _ in $(seq 1 30); do
   if curl -kfsS "https://127.0.0.1:${NGINX_HTTPS_PORT:-443}/healthz" >/dev/null; then
     exit 0
