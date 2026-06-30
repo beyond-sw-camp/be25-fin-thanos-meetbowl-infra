@@ -30,7 +30,9 @@
 | Service | 배치 위치 | 역할 |
 |---|---|---|
 | nginx | EC2 container | 외부 진입점, reverse proxy, HTTPS 종료 |
-| meetbowl-be | EC2 container | 사용자 요청, 업무 상태, MariaDB 소유 |
+| meetbowl-be | EC2 container | 기존 단일 배포 fallback 모드(`all`) |
+| meetbowl-be-api | EC2 container | 사용자 요청 전용 API 모드 |
+| meetbowl-be-worker | EC2 container | 스케줄러 / RabbitMQ consumer 전용 worker 모드 |
 | meetbowl-ai | EC2 container | 회의록 생성, 임베딩, RAG, 실시간 피드백 |
 | meetbowl-stt | EC2 container | LiveKit 오디오 수신, STT, transcript 이벤트 발행 |
 | rabbitmq | EC2 container | 비동기 작업 큐 |
@@ -80,14 +82,14 @@ MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 ```text
 Internet
   -> Nginx
-  -> meetbowl-be
+  -> meetbowl-be-api
 ```
 
 ### 회의 입장 / 미디어 세션
 
 ```text
 Frontend
-  -> Nginx(/api) -> meetbowl-be
+  -> Nginx(/api) -> meetbowl-be-api
   -> LiveKit 직접 연결
   -> meetbowl-stt
 ```
@@ -95,10 +97,10 @@ Frontend
 ### 비동기 회의록 생성
 
 ```text
-meetbowl-be
+meetbowl-be-worker
   -> RabbitMQ
   -> meetbowl-ai
-  -> meetbowl-be
+  -> meetbowl-be-worker
 ```
 
 ### 실시간 피드백
@@ -124,11 +126,16 @@ meetbowl-stt
 meetbowl-infra/
   shared/compose.prod.yml
   be/compose.prod.yml
+  be-api/compose.prod.yml
+  be-worker/compose.prod.yml
   stt/compose.prod.yml
   nginx/
     prod.conf
   scripts/
     deploy-be.sh
+    deploy-be-api.sh
+    deploy-be-worker.sh
+    deploy-be-split.sh
     deploy-stt.sh
 ```
 
@@ -181,6 +188,35 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 - RDS 사용 원칙과 compose 분리 원칙이 정리됨
 - secret 관리 기준이 정리됨
 - 다음 단계의 구현 갭이 식별됨
+
+---
+
+## 전환 / 롤백 원칙
+
+운영 전환은 기존 단일 배포(`meetbowl-be`, role=`all`)를 즉시 제거하지 않는 방향으로 진행한다.
+
+기본 원칙은 아래와 같다.
+
+1. 새 이미지 자체는 하나만 유지한다.
+2. 실행 모드만 `MEETBOWL_APP_ROLE=all|api|worker`로 분리한다.
+3. 분리 배포 검증이 끝나기 전까지는 `scripts/deploy-be.sh` 경로를 항상 유지한다.
+4. 장애 시에는 `shared/compose.prod.yml + be/compose.prod.yml` 조합으로 즉시 복귀할 수 있어야 한다.
+
+권장 전환 순서는 아래와 같다.
+
+1. 기존 `deploy-be.sh`는 즉시 롤백 가능한 단일 모드(`all`) fallback 경로로 유지한다.
+2. split 기본 경로는 `deploy-be-split.sh`를 사용한다.
+3. `deploy-be-split.sh`는 먼저 `deploy-be-api.sh`로 API 컨테이너를 `api` 모드로 교체한다.
+4. API health check가 통과하면 `deploy-be-worker.sh`로 worker 전용 인스턴스를 추가한다.
+5. split 중 하나라도 실패하면 `deploy-be-split.sh`가 `deploy-be.sh`를 호출해 `all` 모드로 되돌린다.
+
+권장 롤백 순서는 아래와 같다.
+
+1. `deploy-be.sh`로 단일 모드(`all`) 컨테이너를 재기동한다.
+2. Nginx `/healthz`, `/api/v1/health`가 회복됐는지 확인한다.
+3. `deploy-be.sh`가 성공하면 남아 있던 `be-worker`는 정리한다.
+
+즉, 분리 배포는 추가 경로이고, 단일 배포는 항상 살아있는 fallback 경로로 유지한다.
 
 ---
 

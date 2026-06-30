@@ -1,11 +1,11 @@
 services:
   be:
     image: ${MEETBOWL_BE_IMAGE:?}
-    container_name: meetbowl-be
+    container_name: meetbowl-be-api
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      MEETBOWL_APP_ROLE: ${MEETBOWL_APP_ROLE:-all}
+      MEETBOWL_APP_ROLE: ${MEETBOWL_APP_ROLE:-api}
       JAVA_OPTS: ${MEETBOWL_BE_JAVA_OPTS:--Xms512m -Xmx1024m}
       MEETBOWL_DB_URL: ${MEETBOWL_DB_URL:?}
       MEETBOWL_DB_USERNAME: ${MEETBOWL_DB_USERNAME:?}

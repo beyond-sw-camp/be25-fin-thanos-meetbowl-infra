@@ -6,8 +6,8 @@ Meetbowl 로컬 개발에 필요한 공용 런타임을 Docker Compose로 실행
 
 운영 배포 구조를 확정한 문서는 [docs/production-deployment-architecture.md](./docs/production-deployment-architecture.md) 를 참고한다.
 
-운영 compose는 `shared/compose.prod.yml`와 서비스별 overlay(`be/compose.prod.yml` 등)로 분리한다.
-운영 배포 스크립트는 `scripts/deploy-be.sh`처럼 infra 레포 루트를 기준으로 실행한다.
+운영 compose는 `shared/compose.prod.yml`와 서비스별 overlay(`be/compose.prod.yml`, `be-api/compose.prod.yml`, `be-worker/compose.prod.yml` 등)로 분리한다.
+운영 배포 스크립트는 `scripts/deploy-be.sh`, `scripts/deploy-be-api.sh`, `scripts/deploy-be-worker.sh`, `scripts/deploy-be-split.sh`처럼 infra 레포 루트를 기준으로 실행한다.
 
 ## 구성
 

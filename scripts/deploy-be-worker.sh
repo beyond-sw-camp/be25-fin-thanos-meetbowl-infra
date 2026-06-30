@@ -11,6 +11,7 @@ ECR_REPOSITORY="${ECR_REPOSITORY:?ECR_REPOSITORY is required}"
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
 SSM_SHARED_PREFIX="${SSM_SHARED_PREFIX:-/meetbowl/prod/shared}"
 SSM_BE_PREFIX="${SSM_BE_PREFIX:-/meetbowl/prod/be}"
+SSM_BE_WORKER_PREFIX="${SSM_BE_WORKER_PREFIX:-/meetbowl/prod/be-worker}"
 
 mkdir -p "${RUNTIME_DIR}"
 
@@ -37,24 +38,18 @@ write_ssm_env_file() {
 
 write_ssm_env_file "${SSM_SHARED_PREFIX}" "${RUNTIME_DIR}/shared.env"
 write_ssm_env_file "${SSM_BE_PREFIX}" "${RUNTIME_DIR}/be.env"
+write_ssm_env_file "${SSM_BE_WORKER_PREFIX}" "${RUNTIME_DIR}/be-worker.env"
 
 set -a
 source "${RUNTIME_DIR}/shared.env"
 source "${RUNTIME_DIR}/be.env"
+source "${RUNTIME_DIR}/be-worker.env"
 set +a
 
 require_env() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then
     echo "required environment variable is missing after SSM load: ${key}" >&2
-    exit 1
-  fi
-}
-
-require_file() {
-  local path="$1"
-  if [[ ! -f "${path}" ]]; then
-    echo "required file is missing: ${path}" >&2
     exit 1
   fi
 }
@@ -71,7 +66,6 @@ for key in \
   MEETBOWL_DB_PASSWORD \
   MEETBOWL_JWT_SECRET \
   MEETBOWL_INTERNAL_TOKEN \
-  MEETBOWL_CORS_ALLOWED_ORIGIN_PATTERNS \
   MEETBOWL_LIVEKIT_URL \
   MEETBOWL_STT_BASE_URL \
   MEETBOWL_AI_BASE_URL \
@@ -79,47 +73,6 @@ for key in \
 do
   require_env "${key}"
 done
-
-require_file "${NGINX_CERTS_DIR}/fullchain.pem"
-require_file "${NGINX_CERTS_DIR}/privkey.pem"
-
-check_https_endpoint() {
-  local path="$1"
-
-  for _ in $(seq 1 30); do
-    if curl -kfsS "https://127.0.0.1:${NGINX_HTTPS_PORT:-443}${path}" >/dev/null; then
-      return 0
-    fi
-    sleep 2
-  done
-
-  echo "smoke test failed: ${path} did not respond in time" >&2
-  return 1
-}
-
-cleanup_worker_if_present() {
-  local worker_container_id
-  worker_container_id="$(
-    docker compose \
-      -f "${INFRA_DIR}/shared/compose.prod.yml" \
-      -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-      ps -q be-worker 2>/dev/null || true
-  )"
-
-  if [[ -z "${worker_container_id}" ]]; then
-    return 0
-  fi
-
-  docker compose \
-    -f "${INFRA_DIR}/shared/compose.prod.yml" \
-    -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-    stop be-worker
-
-  docker compose \
-    -f "${INFRA_DIR}/shared/compose.prod.yml" \
-    -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-    rm -f be-worker
-}
 
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query 'Account' --output text)"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
@@ -131,33 +84,27 @@ aws ecr get-login-password --region "${AWS_REGION}" \
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
   config -q
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  pull be
+  -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
+  pull be-worker
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  up -d
+  -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
+  up -d be-worker
 
-# bind mount된 Nginx 설정 변경은 컨테이너 재생성 없이 반영되지 않을 수 있다.
-# 먼저 문법과 upstream 해석을 검증한 뒤 graceful reload하여 기존 연결 중단을 피한다.
-docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  exec -T nginx nginx -t
+WORKER_PORT="${MEETBOWL_BE_WORKER_PORT:-18080}"
 
-docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  exec -T nginx nginx -s reload
+for _ in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:${WORKER_PORT}/api/v1/health" >/dev/null; then
+    exit 0
+  fi
+  sleep 2
+done
 
-check_https_endpoint "/healthz"
-check_https_endpoint "/api/v1/health"
-cleanup_worker_if_present
-
-exit 0
+echo "smoke test failed: be-worker /api/v1/health did not respond in time" >&2
+exit 1
