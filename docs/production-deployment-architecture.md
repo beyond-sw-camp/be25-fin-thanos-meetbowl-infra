@@ -63,6 +63,8 @@ MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 - `qdrant`
 - `elasticsearch`
 
+단, `meetbowl-ai`와 `meetbowl-stt`는 외부 public 노출을 하지 않더라도 다른 EC2에서 private IP 또는 private DNS로 접근해야 하므로, 컨테이너 포트는 호스트의 `0.0.0.0`에 bind 하고 security group 으로 호출 주체만 제한한다.
+
 운영 보안그룹 기준:
 
 - EC2 inbound

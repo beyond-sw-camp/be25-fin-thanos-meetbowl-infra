@@ -87,7 +87,7 @@
 |---|---|---|
 | `/meetbowl/prod/ai/RABBITMQ_ENABLED` | `true` | 운영에서는 Rabbit consumer 활성화 권장 |
 | `/meetbowl/prod/ai/REDIS_FEEDBACK_ENABLED` | `true` | 운영에서는 실시간 피드백 활성화 권장 |
-| `/meetbowl/prod/ai/MEETBOWL_AI_BIND_ADDRESS` | `127.0.0.1` | 외부 직접 비노출 |
+| `/meetbowl/prod/ai/MEETBOWL_AI_BIND_ADDRESS` | `0.0.0.0` | 다른 EC2에서 private IP로 접근할 수 있게 호스트 NIC에 bind |
 | `/meetbowl/prod/ai/MEETBOWL_AI_PORT` | `8000` | EC2 내부 smoke test용 |
 | `/meetbowl/prod/ai/RABBITMQ_EXCHANGE` | `meetbowl.topic` | |
 | `/meetbowl/prod/ai/RABBITMQ_MINUTES_GENERATE_QUEUE` | `ai.minutes.generate` | |

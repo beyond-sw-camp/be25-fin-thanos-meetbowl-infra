@@ -70,7 +70,7 @@ services:
       RERANK_CANDIDATE_POOL: ${RERANK_CANDIDATE_POOL:-30}
       RERANK_TOP_N: ${RERANK_TOP_N:-10}
     ports:
-      - "${MEETBOWL_AI_BIND_ADDRESS:-127.0.0.1}:${MEETBOWL_AI_PORT:-8000}:8000"
+      - "${MEETBOWL_AI_BIND_ADDRESS:-0.0.0.0}:${MEETBOWL_AI_PORT:-8000}:8000"
     healthcheck:
       test:
         [

@@ -84,7 +84,7 @@
 |---|---|---|
 | `/meetbowl/prod/stt/HOST` | `0.0.0.0` | 컨테이너 내부 bind |
 | `/meetbowl/prod/stt/PORT` | `3000` | 컨테이너 내부 포트 |
-| `/meetbowl/prod/stt/MEETBOWL_STT_BIND_ADDRESS` | `127.0.0.1` | 호스트에서 localhost만 bind |
+| `/meetbowl/prod/stt/MEETBOWL_STT_BIND_ADDRESS` | `0.0.0.0` | 다른 EC2에서 private IP로 접근할 수 있게 호스트 NIC에 bind |
 | `/meetbowl/prod/stt/MEETBOWL_STT_PORT` | `3000` | EC2 내부 smoke test용 |
 | `/meetbowl/prod/stt/ENABLE_TRANSLATION` | `false` | 운영 번역 활성화 스위치 |
 | `/meetbowl/prod/stt/OPENAI_REALTIME_TRANSLATION_MODEL` | `gpt-realtime-translate` | |
