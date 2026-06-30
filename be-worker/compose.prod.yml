@@ -39,11 +39,6 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     ports:
       - "${MEETBOWL_BE_WORKER_BIND_ADDRESS:-127.0.0.1}:${MEETBOWL_BE_WORKER_PORT:-18080}:8080"
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     networks:
       - meetbowl-runtime
 

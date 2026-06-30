@@ -55,12 +55,10 @@ require_env() {
 }
 
 for key in \
-  NGINX_CERTS_DIR \
   RABBITMQ_DEFAULT_USER \
   RABBITMQ_DEFAULT_PASS \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
-  LIVEKIT_NODE_IP \
   MEETBOWL_DB_URL \
   MEETBOWL_DB_USERNAME \
   MEETBOWL_DB_PASSWORD \
@@ -83,17 +81,14 @@ aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
   config -q
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
   pull be-worker
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
   up -d be-worker
 
