@@ -8,6 +8,7 @@
 
 - `meetbowl-be`
 - `shared/compose.prod.yml`
+- `shared/compose.api.prod.yml`
 - `be/compose.prod.yml`
 - `be-api/compose.prod.yml`
 - `be-worker/compose.prod.yml`
@@ -33,23 +34,24 @@
 분리 배포를 사용할 때는 아래 조합을 추가로 사용한다.
 
 ```text
-shared/compose.prod.yml + be-api/compose.prod.yml
+shared/compose.api.prod.yml + be-api/compose.prod.yml
 shared/compose.prod.yml + be-worker/compose.prod.yml
 ```
 
 권장 전환 순서는 아래와 같다.
 
-1. 기본 자동 배포 경로는 `deploy-be-split.sh`를 사용한다.
-2. `deploy-be-split.sh`는 먼저 `deploy-be-api.sh`를 호출해 `be` 서비스를 `api` 모드로 교체한다.
-3. Nginx `/healthz`, API `/api/v1/health`가 통과하면 `deploy-be-worker.sh`를 호출한다.
-4. scheduler / RabbitMQ consumer / 검색 인덱스 초기화가 worker에서 정상 동작하는지 확인한다.
-5. split 단계 중 하나라도 실패하면 `deploy-be-split.sh`가 `deploy-be.sh`를 호출해 `all` 모드로 자동 복귀한다.
+1. 기본 자동 배포 경로는 API ASG + Worker EC2 분리 경로를 사용한다.
+2. GitHub Actions가 `/meetbowl/prod/be-api/MEETBOWL_BE_IMAGE_TAG`를 현재 이미지 태그로 갱신한다.
+3. GitHub Actions가 API ASG의 InService 인스턴스들에 SSM으로 `deploy-be-api.sh`를 실행한다.
+4. API `/healthz`, `/api/v1/health`가 통과하면 Worker EC2에 `deploy-be-worker.sh`를 실행한다.
+5. scheduler / RabbitMQ consumer / 검색 인덱스 초기화가 worker에서 정상 동작하는지 확인한다.
+6. split 경로 장애 시에는 fallback EC2의 `deploy-be.sh` 경로로 수동 복귀한다.
 
 권장 롤백 순서는 아래와 같다.
 
-1. `deploy-be.sh`로 단일 모드(`all`)를 다시 기동한다.
+1. fallback EC2에서 `deploy-be.sh`로 단일 모드(`all`)를 다시 기동한다.
 2. `/healthz`, `/api/v1/health`, 로그인/회의 입장 핵심 흐름을 확인한다.
-3. `deploy-be.sh`가 성공하면 남아 있던 `be-worker`는 자동 정리된다.
+3. ALB 또는 DNS를 fallback 경로로 전환한다.
 
 ---
 
@@ -67,6 +69,7 @@ shared/compose.prod.yml + be-worker/compose.prod.yml
 `deploy-be.sh`는 위 두 prefix를 읽어 `.runtime/shared.env`, `.runtime/be.env`를 만든 뒤 shell 환경변수로 로드한다.
 `deploy-be-api.sh`와 `deploy-be-worker.sh`는 `shared -> be -> 역할별 prefix` 순서로 로드한다.
 즉 공통 앱 설정은 `/meetbowl/prod/be`를 기준으로 두고, 역할별 prefix는 override가 필요한 값만 두면 된다.
+단, API ASG는 `shared/compose.api.prod.yml`을 사용하므로 `NGINX_CERTS_DIR`와 HTTPS 포트 검사가 필요하지 않다.
 
 ## 실행 역할
 
@@ -169,9 +172,11 @@ worker: scheduler / RabbitMQ listener 전용
 | SSM Key | 예시 값 | 용도 |
 |---|---|---|
 | `/meetbowl/prod/be-api/MEETBOWL_APP_ROLE` | `api` | API 전용 실행 역할 |
+| `/meetbowl/prod/be-api/MEETBOWL_BE_IMAGE_TAG` | `git-sha` | API ASG 인스턴스가 부팅 시 사용할 현재 이미지 태그 |
 
 API 전용으로 CORS나 Java 옵션을 다르게 가져가고 싶을 때만 `/meetbowl/prod/be-api`에 추가 override를 둔다.
 그렇지 않으면 나머지 값은 모두 `/meetbowl/prod/be`만 사용하면 된다.
+ASG 새 인스턴스도 같은 태그를 사용해야 하므로 launch template user data 또는 부팅 훅에서 `deploy-be-api.sh`를 실행해 이 값을 읽도록 구성해야 한다.
 
 ### Worker 전용 override 파라미터
 
@@ -193,12 +198,18 @@ worker는 브라우저 트래픽을 직접 받지 않으므로 CORS 값을 overr
 | Secret | 용도 |
 |---|---|
 | `AWS_GITHUB_ACTIONS_ROLE_ARN` | GitHub OIDC로 ECR push 및 배포 권한 획득 |
-| `MEETBOWL_EC2_HOST` | EC2 접속 호스트 |
-| `MEETBOWL_EC2_USER` | SSH 사용자 |
-| `MEETBOWL_EC2_SSH_KEY` | private key |
-| `MEETBOWL_DEPLOY_PATH` | EC2의 `meetbowl-infra` 루트 경로 |
+| `MEETBOWL_API_BLUE_ASG_NAME` | 현재 운영 API blue Auto Scaling Group 이름 |
+| `MEETBOWL_API_BLUE_DEPLOY_PATH` | API blue EC2들의 `meetbowl-infra` 루트 경로 |
+| `MEETBOWL_WORKER_EC2_HOST` | Worker EC2 접속 호스트 |
+| `MEETBOWL_WORKER_EC2_USER` | Worker SSH 사용자 |
+| `MEETBOWL_WORKER_EC2_SSH_KEY` | Worker private key |
+| `MEETBOWL_WORKER_DEPLOY_PATH` | Worker EC2의 `meetbowl-infra` 루트 경로 |
+| `MEETBOWL_FALLBACK_EC2_HOST` | fallback EC2 접속 호스트 |
+| `MEETBOWL_FALLBACK_EC2_USER` | fallback SSH 사용자 |
+| `MEETBOWL_FALLBACK_EC2_SSH_KEY` | fallback private key |
+| `MEETBOWL_FALLBACK_DEPLOY_PATH` | fallback EC2의 `meetbowl-infra` 루트 경로 |
 
-`MEETBOWL_DEPLOY_PATH`는 반드시 아래처럼 infra 레포 루트여야 한다.
+각 `*_DEPLOY_PATH`는 반드시 아래처럼 infra 레포 루트여야 한다.
 
 ```text
 /opt/meetbowl/meetbowl-infra
@@ -210,9 +221,9 @@ worker는 브라우저 트래픽을 직접 받지 않으므로 CORS 값을 overr
 
 아래는 `meetbowl-be` 첫 배포 전에 완료되어야 한다.
 
-1. `meetbowl-infra`가 EC2에 clone 되어 있어야 한다.
+1. API ASG, Worker EC2, fallback EC2에 `meetbowl-infra`가 clone 되어 있어야 한다.
 2. `docker`, `docker compose`, `aws cli`, `curl`이 설치되어 있어야 한다.
-3. EC2 instance profile 또는 attached role에 아래 권한이 있어야 한다.
+3. API ASG instance profile 또는 attached role에는 아래 권한이 있어야 한다.
 
 ```text
 ssm:GetParametersByPath
@@ -224,14 +235,17 @@ ecr:GetDownloadUrlForLayer
 sts:GetCallerIdentity
 ```
 
-4. `NGINX_CERTS_DIR` 경로에 아래 파일이 있어야 한다.
+4. API EC2는 SSM Agent와 `AmazonSSMManagedInstanceCore`에 준하는 권한이 있어야 한다.
+5. API ASG launch template user data 또는 부팅 훅은 `deploy-be-api.sh`를 실행할 수 있어야 한다.
+
+6. fallback EC2의 `NGINX_CERTS_DIR` 경로에 아래 파일이 있어야 한다.
 
 ```text
 fullchain.pem
 privkey.pem
 ```
 
-5. RDS security group inbound는 EC2 security group에서만 `3306/tcp` 허용 상태여야 한다.
+7. RDS security group inbound는 EC2 security group에서만 `3306/tcp` 허용 상태여야 한다.
 
 ---
 
@@ -241,10 +255,12 @@ GitHub Actions 자동 배포 전에 EC2에서 아래를 먼저 확인하는 편�
 
 1. `aws ssm get-parameters-by-path --path /meetbowl/prod/shared --with-decryption`
 2. `aws ssm get-parameters-by-path --path /meetbowl/prod/be --with-decryption`
-3. `bash scripts/deploy-be.sh` 수동 실행
-4. `docker compose -f shared/compose.prod.yml -f be/compose.prod.yml ps`
-5. `curl -k https://127.0.0.1/healthz`
-6. BE 로그에서 Flyway migration, datasource 연결, RabbitMQ 연결 확인
+3. API EC2 한 대에서 `bash scripts/deploy-be-api.sh` 수동 실행
+4. Worker EC2에서 `bash scripts/deploy-be-worker.sh` 수동 실행
+5. fallback EC2에서 `bash scripts/deploy-be.sh` 수동 실행
+6. API EC2에서 `docker compose -f shared/compose.api.prod.yml -f be-api/compose.prod.yml ps`
+7. `curl http://127.0.0.1/healthz`
+8. API / Worker 로그에서 Flyway migration, datasource 연결, RabbitMQ 연결 확인
 
 ### 알림 SSE 점검
 
@@ -282,6 +298,6 @@ unset MEETBOWL_TEST_ACCESS_TOKEN
 4. 수동 `deploy-be.sh` 1회 검증
 5. 수동 `deploy-be-api.sh` 1회 검증
 6. 수동 `deploy-be-worker.sh` 1회 검증
-7. 수동 `deploy-be-split.sh` 1회 검증
+7. API ASG user data / 부팅 훅 검증
 8. GitHub Actions secret 등록
 9. `main` 기준 자동 배포 테스트

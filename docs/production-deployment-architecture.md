@@ -25,20 +25,17 @@
 
 ## 운영 런타임 구조
 
-운영 EC2 한 대에는 아래 컨테이너를 올린다.
+운영 서버는 역할별로 분리한다.
 
 | Service | 배치 위치 | 역할 |
 |---|---|---|
-| nginx | EC2 container | 외부 진입점, reverse proxy, HTTPS 종료 |
-| meetbowl-be | EC2 container | 기존 단일 배포 fallback 모드(`all`) |
-| meetbowl-be-api | EC2 container | 사용자 요청 전용 API 모드 |
-| meetbowl-be-worker | EC2 container | 스케줄러 / RabbitMQ consumer 전용 worker 모드 |
-| meetbowl-ai | EC2 container | 회의록 생성, 임베딩, RAG, 실시간 피드백 |
-| meetbowl-stt | EC2 container | LiveKit 오디오 수신, STT, transcript 이벤트 발행 |
-| rabbitmq | EC2 container | 비동기 작업 큐 |
-| redis | EC2 container | 토큰 상태, Redis Stream |
-| livekit | EC2 container | 회의 media session, DataChannel |
-| qdrant | EC2 container | AI 벡터 저장소 |
+| nginx + meetbowl-be-api | API EC2 in ASG | 외부 진입 API, HTTPS 종료, ALB target |
+| meetbowl-be-worker | Worker EC2 | 스케줄러 / RabbitMQ consumer 전용 worker 모드 |
+| meetbowl-be | Fallback EC2 | 기존 단일 배포 fallback 모드(`all`) |
+| meetbowl-ai | AI EC2 | 회의록 생성, 임베딩, RAG, 실시간 피드백 |
+| meetbowl-stt | STT EC2 | LiveKit 오디오 수신, STT, transcript 이벤트 발행 |
+| rabbitmq / redis / elasticsearch / qdrant | Infra EC2 | 내부 공용 런타임 |
+| livekit | LiveKit EC2 | 회의 media session, DataChannel |
 
 MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 
@@ -46,18 +43,20 @@ MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 
 ## 네트워크 경계
 
-외부에서 직접 접근 가능한 엔드포인트는 Nginx만 둔다.
+외부에서 직접 접근 가능한 엔드포인트는 ALB와 LiveKit만 둔다.
 
-- `443/tcp`: public
-- `80/tcp`: 가능하면 HTTPS redirect 용도만 유지
+- `443/tcp`: ALB public
+- `80/tcp`: 가능하면 ALB의 redirect 용도만 유지
 
 외부 직접 노출 대상:
 
-- `nginx`
+- `ALB`
 - 필요 시 `livekit`의 RTC/TURN 관련 포트
 
 외부 직접 비노출 대상:
 
+- `meetbowl-be-api` 인스턴스 자체
+- `meetbowl-be-worker`
 - `meetbowl-be`
 - `meetbowl-ai`
 - `meetbowl-stt`
@@ -81,15 +80,15 @@ MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 
 ```text
 Internet
-  -> Nginx
-  -> meetbowl-be-api
+  -> ALB
+  -> API EC2 (nginx -> meetbowl-be-api)
 ```
 
 ### 회의 입장 / 미디어 세션
 
 ```text
 Frontend
-  -> Nginx(/api) -> meetbowl-be-api
+  -> ALB -> API EC2 (nginx /api -> meetbowl-be-api)
   -> LiveKit 직접 연결
   -> meetbowl-stt
 ```
@@ -125,6 +124,7 @@ meetbowl-stt
 ```text
 meetbowl-infra/
   shared/compose.prod.yml
+  shared/compose.api.prod.yml
   be/compose.prod.yml
   be-api/compose.prod.yml
   be-worker/compose.prod.yml
@@ -200,23 +200,25 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 1. 새 이미지 자체는 하나만 유지한다.
 2. 실행 모드만 `MEETBOWL_APP_ROLE=all|api|worker`로 분리한다.
 3. 분리 배포 검증이 끝나기 전까지는 `scripts/deploy-be.sh` 경로를 항상 유지한다.
-4. 장애 시에는 `shared/compose.prod.yml + be/compose.prod.yml` 조합으로 즉시 복귀할 수 있어야 한다.
+4. 장애 시에는 fallback EC2의 `shared/compose.prod.yml + be/compose.prod.yml` 조합으로 즉시 복귀할 수 있어야 한다.
 
 권장 전환 순서는 아래와 같다.
 
 1. 기존 `deploy-be.sh`는 즉시 롤백 가능한 단일 모드(`all`) fallback 경로로 유지한다.
-2. split 기본 경로는 `deploy-be-split.sh`를 사용한다.
-3. `deploy-be-split.sh`는 먼저 `deploy-be-api.sh`로 API 컨테이너를 `api` 모드로 교체한다.
-4. API health check가 통과하면 `deploy-be-worker.sh`로 worker 전용 인스턴스를 추가한다.
-5. split 중 하나라도 실패하면 `deploy-be-split.sh`가 `deploy-be.sh`를 호출해 `all` 모드로 되돌린다.
+2. split 기본 경로는 API ASG 인스턴스에 `shared/compose.api.prod.yml + be-api/compose.prod.yml` 조합의 `deploy-be-api.sh`를 SSM으로 실행한 뒤 Worker EC2에 `deploy-be-worker.sh`를 실행한다.
+3. API ASG의 desired image tag는 SSM `/meetbowl/prod/be-api/MEETBOWL_BE_IMAGE_TAG`에 기록한다.
+4. 새 API 인스턴스는 launch template user data 또는 부팅 훅에서 `deploy-be-api.sh`를 실행해 위 image tag를 읽어야 한다.
+5. split 배포에 실패하면 운영자는 fallback EC2의 `deploy-be.sh` 경로로 수동 복귀한다.
 
 권장 롤백 순서는 아래와 같다.
 
-1. `deploy-be.sh`로 단일 모드(`all`) 컨테이너를 재기동한다.
+1. fallback EC2에서 `deploy-be.sh`로 단일 모드(`all`) 컨테이너를 재기동한다.
 2. Nginx `/healthz`, `/api/v1/health`가 회복됐는지 확인한다.
-3. `deploy-be.sh`가 성공하면 남아 있던 `be-worker`는 정리한다.
+3. ALB 또는 DNS 경로를 fallback 대상으로 전환한다.
 
 즉, 분리 배포는 추가 경로이고, 단일 배포는 항상 살아있는 fallback 경로로 유지한다.
+
+API ASG는 ALB 뒤에서 HTTP만 수신한다. TLS 종료는 ALB/ACM에서 처리하고, API 인스턴스 nginx는 `/healthz`와 `/api/*`만 프록시하므로 EC2 로컬 인증서는 필요하지 않다.
 
 ---
 
