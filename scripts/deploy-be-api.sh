@@ -8,7 +8,7 @@ RUNTIME_DIR="${INFRA_DIR}/.runtime"
 
 AWS_REGION="${AWS_REGION:?AWS_REGION is required}"
 ECR_REPOSITORY="${ECR_REPOSITORY:?ECR_REPOSITORY is required}"
-IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
+IMAGE_TAG="${IMAGE_TAG:-}"
 SSM_SHARED_PREFIX="${SSM_SHARED_PREFIX:-/meetbowl/prod/shared}"
 SSM_BE_PREFIX="${SSM_BE_PREFIX:-/meetbowl/prod/be}"
 SSM_BE_API_PREFIX="${SSM_BE_API_PREFIX:-/meetbowl/prod/be-api}"
@@ -46,6 +46,13 @@ source "${RUNTIME_DIR}/be.env"
 source "${RUNTIME_DIR}/be-api.env"
 set +a
 
+IMAGE_TAG="${IMAGE_TAG:-${MEETBOWL_BE_IMAGE_TAG:-}}"
+
+if [[ -z "${IMAGE_TAG}" ]]; then
+  echo "required environment variable is missing: IMAGE_TAG or MEETBOWL_BE_IMAGE_TAG" >&2
+  exit 1
+fi
+
 require_env() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then
@@ -63,12 +70,10 @@ require_file() {
 }
 
 for key in \
-  NGINX_CERTS_DIR \
   RABBITMQ_DEFAULT_USER \
   RABBITMQ_DEFAULT_PASS \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
-  LIVEKIT_NODE_IP \
   MEETBOWL_DB_URL \
   MEETBOWL_DB_USERNAME \
   MEETBOWL_DB_PASSWORD \
@@ -83,14 +88,11 @@ do
   require_env "${key}"
 done
 
-require_file "${NGINX_CERTS_DIR}/fullchain.pem"
-require_file "${NGINX_CERTS_DIR}/privkey.pem"
-
-check_https_endpoint() {
+check_http_endpoint() {
   local path="$1"
 
   for _ in $(seq 1 30); do
-    if curl -kfsS "https://127.0.0.1:${NGINX_HTTPS_PORT:-443}${path}" >/dev/null; then
+    if curl -fsS "http://127.0.0.1:${NGINX_HTTP_PORT:-80}${path}" >/dev/null; then
       return 0
     fi
     sleep 2
@@ -109,31 +111,31 @@ aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/shared/compose.api.prod.yml" \
   -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   config -q
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/shared/compose.api.prod.yml" \
   -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   pull be
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/shared/compose.api.prod.yml" \
   -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   up -d nginx be
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/shared/compose.api.prod.yml" \
   -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   exec -T nginx nginx -t
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
+  -f "${INFRA_DIR}/shared/compose.api.prod.yml" \
   -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   exec -T nginx nginx -s reload
 
-check_https_endpoint "/healthz"
-check_https_endpoint "/api/v1/health"
+check_http_endpoint "/healthz"
+check_http_endpoint "/api/v1/health"
 
 exit 0
