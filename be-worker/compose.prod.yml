@@ -44,4 +44,3 @@ services:
 
 networks:
   meetbowl-runtime:
-    name: meetbowl-prod-runtime
