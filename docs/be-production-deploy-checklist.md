@@ -154,6 +154,7 @@ worker: scheduler / RabbitMQ listener 전용
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_VHOST` | `/` | |
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_EXCHANGE` | `meetbowl.topic` | |
 | `/meetbowl/prod/be/MEETBOWL_RABBITMQ_MINUTES_GENERATED_QUEUE` | `api.minutes.generated` | |
+| `/meetbowl/prod/be-worker/MEETBOWL_BE_WORKER_JAVA_TOOL_OPTIONS` | `-Djava.net.preferIPv4Stack=true` | Amazon MQ DNS가 IPv6로만 resolve될 때 worker JVM의 IPv4 우선 사용 강제 |
 | `/meetbowl/prod/be/MEETBOWL_LIVEKIT_TOKEN_EXPIRATION_SECONDS` | `3600` | |
 | `/meetbowl/prod/be/MEETBOWL_STT_INTERNAL_TOKEN` | `MEETBOWL_INTERNAL_TOKEN` 재사용 가능 | |
 | `/meetbowl/prod/be/MEETBOWL_ELASTICSEARCH_URL` | `http://elasticsearch:9200` | |
