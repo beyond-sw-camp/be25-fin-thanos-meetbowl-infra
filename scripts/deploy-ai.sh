@@ -51,6 +51,17 @@ require_env() {
   fi
 }
 
+cleanup_stale_ai_container() {
+  local container_id
+  container_id="$(docker ps -aq --filter name='^meetbowl-ai$' || true)"
+
+  if [[ -z "${container_id}" ]]; then
+    return 0
+  fi
+
+  docker rm -f meetbowl-ai >/dev/null
+}
+
 for key in \
   INTERNAL_TOKEN \
   BE_BASE_URL \
@@ -72,6 +83,8 @@ export MEETBOWL_AI_IMAGE
 
 aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+cleanup_stale_ai_container
 
 docker compose \
   -f "${INFRA_DIR}/ai/compose.prod.yml" \

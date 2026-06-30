@@ -61,6 +61,17 @@ require_env() {
   fi
 }
 
+cleanup_stale_stt_container() {
+  local container_id
+  container_id="$(docker ps -aq --filter name='^meetbowl-stt$' || true)"
+
+  if [[ -z "${container_id}" ]]; then
+    return 0
+  fi
+
+  docker rm -f meetbowl-stt >/dev/null
+}
+
 for key in \
   INTERNAL_TOKEN \
   OPENAI_API_KEY \
@@ -80,6 +91,8 @@ export MEETBOWL_STT_IMAGE
 
 aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+cleanup_stale_stt_container
 
 docker compose \
   -f "${INFRA_DIR}/stt/compose.prod.yml" \
