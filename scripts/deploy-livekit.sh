@@ -46,13 +46,25 @@ require_env() {
   fi
 }
 
+require_file() {
+  local path="$1"
+  if [[ ! -f "${path}" ]]; then
+    echo "required file is missing: ${path}" >&2
+    exit 1
+  fi
+}
+
 for key in \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
-  LIVEKIT_NODE_IP
+  LIVEKIT_NODE_IP \
+  NGINX_CERTS_DIR
 do
   require_env "${key}"
 done
+
+require_file "${NGINX_CERTS_DIR}/fullchain.pem"
+require_file "${NGINX_CERTS_DIR}/privkey.pem"
 
 docker compose \
   -f "${INFRA_DIR}/livekit/compose.prod.yml" \
@@ -63,11 +75,12 @@ docker compose \
   up -d
 
 for _ in $(seq 1 30); do
-  if bash -c "</dev/tcp/127.0.0.1/${LIVEKIT_HTTP_PORT:-7880}" 2>/dev/null; then
+  if curl -kfsS "https://127.0.0.1:${NGINX_HTTPS_PORT:-443}/healthz" >/dev/null \
+    && bash -c "</dev/tcp/127.0.0.1/${LIVEKIT_HTTP_PORT:-7880}" 2>/dev/null; then
     exit 0
   fi
   sleep 2
 done
 
-echo "smoke test failed: livekit port did not open in time" >&2
+echo "smoke test failed: livekit nginx or signaling port did not respond in time" >&2
 exit 1

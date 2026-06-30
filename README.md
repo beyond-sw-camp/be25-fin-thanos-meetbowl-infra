@@ -54,6 +54,7 @@ docker compose up -d
 | Search EC2 | `scripts/deploy-search.sh` |
 
 운영에서는 `Redis`를 ElastiCache, `RabbitMQ`를 Amazon MQ로 사용하므로 운영 compose에는 포함하지 않는다.
+LiveKit EC2는 `nginx + livekit` 조합으로 실행하고, 브라우저에는 HTTPS LiveKit URL을 제공한다.
 
 LiveKit/STT를 같이 테스트할 때는 현재 호스트 IP를 자동 주입하는 wrapper를 우선 사용한다.
 
