@@ -54,6 +54,17 @@ require_env() {
   fi
 }
 
+cleanup_stale_worker_container() {
+  local container_id
+  container_id="$(docker ps -aq --filter name='^meetbowl-be-worker$' || true)"
+
+  if [[ -z "${container_id}" ]]; then
+    return 0
+  fi
+
+  docker rm -f meetbowl-be-worker >/dev/null
+}
+
 for key in \
   RABBITMQ_DEFAULT_USER \
   RABBITMQ_DEFAULT_PASS \
@@ -79,6 +90,8 @@ export MEETBOWL_BE_IMAGE
 
 aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+cleanup_stale_worker_container
 
 docker compose \
   -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
