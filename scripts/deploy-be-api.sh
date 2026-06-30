@@ -11,6 +11,7 @@ ECR_REPOSITORY="${ECR_REPOSITORY:?ECR_REPOSITORY is required}"
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
 SSM_SHARED_PREFIX="${SSM_SHARED_PREFIX:-/meetbowl/prod/shared}"
 SSM_BE_PREFIX="${SSM_BE_PREFIX:-/meetbowl/prod/be}"
+SSM_BE_API_PREFIX="${SSM_BE_API_PREFIX:-/meetbowl/prod/be-api}"
 
 mkdir -p "${RUNTIME_DIR}"
 
@@ -37,10 +38,12 @@ write_ssm_env_file() {
 
 write_ssm_env_file "${SSM_SHARED_PREFIX}" "${RUNTIME_DIR}/shared.env"
 write_ssm_env_file "${SSM_BE_PREFIX}" "${RUNTIME_DIR}/be.env"
+write_ssm_env_file "${SSM_BE_API_PREFIX}" "${RUNTIME_DIR}/be-api.env"
 
 set -a
 source "${RUNTIME_DIR}/shared.env"
 source "${RUNTIME_DIR}/be.env"
+source "${RUNTIME_DIR}/be-api.env"
 set +a
 
 require_env() {
@@ -97,30 +100,6 @@ check_https_endpoint() {
   return 1
 }
 
-cleanup_worker_if_present() {
-  local worker_container_id
-  worker_container_id="$(
-    docker compose \
-      -f "${INFRA_DIR}/shared/compose.prod.yml" \
-      -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-      ps -q be-worker 2>/dev/null || true
-  )"
-
-  if [[ -z "${worker_container_id}" ]]; then
-    return 0
-  fi
-
-  docker compose \
-    -f "${INFRA_DIR}/shared/compose.prod.yml" \
-    -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-    stop be-worker
-
-  docker compose \
-    -f "${INFRA_DIR}/shared/compose.prod.yml" \
-    -f "${INFRA_DIR}/be-worker/compose.prod.yml" \
-    rm -f be-worker
-}
-
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query 'Account' --output text)"
 ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 MEETBOWL_BE_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
@@ -131,33 +110,30 @@ aws ecr get-login-password --region "${AWS_REGION}" \
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   config -q
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   pull be
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
-  up -d
+  -f "${INFRA_DIR}/be-api/compose.prod.yml" \
+  up -d nginx be
 
-# bind mount된 Nginx 설정 변경은 컨테이너 재생성 없이 반영되지 않을 수 있다.
-# 먼저 문법과 upstream 해석을 검증한 뒤 graceful reload하여 기존 연결 중단을 피한다.
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   exec -T nginx nginx -t
 
 docker compose \
   -f "${INFRA_DIR}/shared/compose.prod.yml" \
-  -f "${INFRA_DIR}/be/compose.prod.yml" \
+  -f "${INFRA_DIR}/be-api/compose.prod.yml" \
   exec -T nginx nginx -s reload
 
 check_https_endpoint "/healthz"
 check_https_endpoint "/api/v1/health"
-cleanup_worker_if_present
 
 exit 0

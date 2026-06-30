@@ -9,7 +9,12 @@
 - `meetbowl-be`
 - `shared/compose.prod.yml`
 - `be/compose.prod.yml`
+- `be-api/compose.prod.yml`
+- `be-worker/compose.prod.yml`
 - `scripts/deploy-be.sh`
+- `scripts/deploy-be-api.sh`
+- `scripts/deploy-be-worker.sh`
+- `scripts/deploy-be-split.sh`
 
 `meetbowl-ai`, `meetbowl-stt`는 같은 패턴을 재사용하되 이 문서 범위에는 포함하지 않는다.
 
@@ -17,13 +22,34 @@
 
 ## 배포 구조
 
-운영 배포는 아래 순서로 진행된다.
+기본 단일 배포는 아래 순서로 진행된다.
 
 1. GitHub Actions가 `meetbowl-be` 이미지를 ECR에 push한다.
 2. GitHub Actions가 EC2에 SSH 접속한다.
 3. EC2의 `meetbowl-infra/scripts/deploy-be.sh`가 SSM Parameter Store 값을 읽는다.
 4. `shared/compose.prod.yml + be/compose.prod.yml` 조합으로 `docker compose up -d`를 실행한다.
 5. Nginx `/healthz` smoke test가 통과하면 배포 완료로 본다.
+
+분리 배포를 사용할 때는 아래 조합을 추가로 사용한다.
+
+```text
+shared/compose.prod.yml + be-api/compose.prod.yml
+shared/compose.prod.yml + be-worker/compose.prod.yml
+```
+
+권장 전환 순서는 아래와 같다.
+
+1. 기본 자동 배포 경로는 `deploy-be-split.sh`를 사용한다.
+2. `deploy-be-split.sh`는 먼저 `deploy-be-api.sh`를 호출해 `be` 서비스를 `api` 모드로 교체한다.
+3. Nginx `/healthz`, API `/api/v1/health`가 통과하면 `deploy-be-worker.sh`를 호출한다.
+4. scheduler / RabbitMQ consumer / 검색 인덱스 초기화가 worker에서 정상 동작하는지 확인한다.
+5. split 단계 중 하나라도 실패하면 `deploy-be-split.sh`가 `deploy-be.sh`를 호출해 `all` 모드로 자동 복귀한다.
+
+권장 롤백 순서는 아래와 같다.
+
+1. `deploy-be.sh`로 단일 모드(`all`)를 다시 기동한다.
+2. `/healthz`, `/api/v1/health`, 로그인/회의 입장 핵심 흐름을 확인한다.
+3. `deploy-be.sh`가 성공하면 남아 있던 `be-worker`는 자동 정리된다.
 
 ---
 
@@ -34,9 +60,23 @@
 ```text
 /meetbowl/prod/shared
 /meetbowl/prod/be
+/meetbowl/prod/be-api
+/meetbowl/prod/be-worker
 ```
 
 `deploy-be.sh`는 위 두 prefix를 읽어 `.runtime/shared.env`, `.runtime/be.env`를 만든 뒤 shell 환경변수로 로드한다.
+`deploy-be-api.sh`와 `deploy-be-worker.sh`는 `shared -> be -> 역할별 prefix` 순서로 로드한다.
+즉 공통 앱 설정은 `/meetbowl/prod/be`를 기준으로 두고, 역할별 prefix는 override가 필요한 값만 두면 된다.
+
+## 실행 역할
+
+`meetbowl-be` 이미지는 동일하지만 `MEETBOWL_APP_ROLE`로 실행 모드를 나눈다.
+
+```text
+all: 기존 단일 배포 fallback
+api: HTTP API 전용
+worker: scheduler / RabbitMQ listener 전용
+```
 
 ---
 
@@ -121,6 +161,28 @@
 | `/meetbowl/prod/be/S3_ENDPOINT` | 빈 값 | AWS S3면 비워둘 수 있음 |
 | `/meetbowl/prod/be/AWS_ACCESS_KEY_ID` | 빈 값 | EC2 IAM Role 사용 시 불필요 |
 | `/meetbowl/prod/be/AWS_SECRET_ACCESS_KEY` | 빈 값 | EC2 IAM Role 사용 시 불필요 |
+
+### API 전용 override 파라미터
+
+`deploy-be-api.sh`는 `/meetbowl/prod/be-api` prefix에서 API 전용 값을 읽는다.
+
+| SSM Key | 예시 값 | 용도 |
+|---|---|---|
+| `/meetbowl/prod/be-api/MEETBOWL_APP_ROLE` | `api` | API 전용 실행 역할 |
+
+API 전용으로 CORS나 Java 옵션을 다르게 가져가고 싶을 때만 `/meetbowl/prod/be-api`에 추가 override를 둔다.
+그렇지 않으면 나머지 값은 모두 `/meetbowl/prod/be`만 사용하면 된다.
+
+### Worker 전용 override 파라미터
+
+`deploy-be-worker.sh`는 `/meetbowl/prod/be-worker` prefix에서 worker 전용 값을 읽는다.
+
+| SSM Key | 예시 값 | 용도 |
+|---|---|---|
+| `/meetbowl/prod/be-worker/MEETBOWL_APP_ROLE` | `worker` | worker 전용 실행 역할 |
+
+worker는 브라우저 트래픽을 직접 받지 않으므로 CORS 값을 override할 필요가 없다.
+별도 JVM 메모리나 포트를 줄 때만 `/meetbowl/prod/be-worker`에 추가 override를 둔다.
 
 ---
 
@@ -218,5 +280,8 @@ unset MEETBOWL_TEST_ACCESS_TOKEN
 2. EC2 IAM role 부여
 3. Nginx 인증서 배치
 4. 수동 `deploy-be.sh` 1회 검증
-5. GitHub Actions secret 등록
-6. `main` 기준 자동 배포 테스트
+5. 수동 `deploy-be-api.sh` 1회 검증
+6. 수동 `deploy-be-worker.sh` 1회 검증
+7. 수동 `deploy-be-split.sh` 1회 검증
+8. GitHub Actions secret 등록
+9. `main` 기준 자동 배포 테스트
