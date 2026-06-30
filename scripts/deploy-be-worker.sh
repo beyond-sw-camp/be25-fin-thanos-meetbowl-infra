@@ -46,6 +46,62 @@ source "${RUNTIME_DIR}/be.env"
 source "${RUNTIME_DIR}/be-worker.env"
 set +a
 
+derive_rabbitmq_connection_env() {
+  if [[ -z "${MEETBOWL_RABBITMQ_URI:-}" ]]; then
+    return 0
+  fi
+
+  local uri scheme remainder authority path userinfo hostport username password host port
+  uri="${MEETBOWL_RABBITMQ_URI}"
+  scheme="${uri%%://*}"
+  remainder="${uri#*://}"
+  authority="${remainder%%/*}"
+  path=""
+  if [[ "${remainder}" == */* ]]; then
+    path="/${remainder#*/}"
+  fi
+
+  userinfo="${authority%@*}"
+  hostport="${authority##*@}"
+  if [[ "${authority}" == "${hostport}" ]]; then
+    userinfo=""
+  fi
+
+  host="${hostport%:*}"
+  port="${hostport##*:}"
+  if [[ "${host}" == "${port}" ]]; then
+    port=""
+  fi
+
+  if [[ -n "${userinfo}" ]]; then
+    username="${userinfo%%:*}"
+    password="${userinfo#*:}"
+    if [[ "${username}" != "${userinfo}" ]]; then
+      export MEETBOWL_RABBITMQ_USERNAME="${username}"
+      export MEETBOWL_RABBITMQ_PASSWORD="${password}"
+    else
+      export MEETBOWL_RABBITMQ_USERNAME="${userinfo}"
+    fi
+  fi
+
+  export MEETBOWL_RABBITMQ_HOST="${host}"
+  if [[ -n "${port}" ]]; then
+    export MEETBOWL_RABBITMQ_PORT="${port}"
+  fi
+  if [[ -n "${path}" && "${path}" != "/" ]]; then
+    export MEETBOWL_RABBITMQ_VHOST="${path}"
+  else
+    export MEETBOWL_RABBITMQ_VHOST="/"
+  fi
+  if [[ "${scheme}" == "amqps" ]]; then
+    export MEETBOWL_RABBITMQ_SSL_ENABLED="true"
+  else
+    export MEETBOWL_RABBITMQ_SSL_ENABLED="false"
+  fi
+}
+
+derive_rabbitmq_connection_env
+
 require_env() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then
