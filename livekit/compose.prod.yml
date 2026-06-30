@@ -1,0 +1,23 @@
+name: meetbowl-livekit
+
+services:
+  livekit:
+    image: livekit/livekit-server:v1.8
+    container_name: meetbowl-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?}: ${LIVEKIT_API_SECRET:?}"
+      NODE_IP: ${LIVEKIT_NODE_IP:?}
+    ports:
+      - "${LIVEKIT_HTTP_BIND_ADDRESS:-0.0.0.0}:${LIVEKIT_HTTP_PORT:-7880}:7880"
+      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
+      - "${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp"
+    volumes:
+      - ../livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    networks:
+      - meetbowl-runtime
+
+networks:
+  meetbowl-runtime:
+    name: meetbowl-prod-runtime

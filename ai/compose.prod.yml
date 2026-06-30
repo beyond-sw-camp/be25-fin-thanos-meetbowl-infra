@@ -42,7 +42,7 @@ services:
       QUERY_EMBEDDING_PROVIDER: ${QUERY_EMBEDDING_PROVIDER:-openai}
       QUERY_EMBEDDING_MODEL: ${QUERY_EMBEDDING_MODEL:-text-embedding-3-large}
       QUERY_EMBEDDING_DIMENSIONS: ${QUERY_EMBEDDING_DIMENSIONS:-1536}
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_URL: ${QDRANT_URL:?}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-meetbowl-documents-openai-large-1536}
       DOCUMENT_CHUNK_SIZE: ${DOCUMENT_CHUNK_SIZE:-1200}
       DOCUMENT_CHUNK_OVERLAP: ${DOCUMENT_CHUNK_OVERLAP:-150}
@@ -52,7 +52,7 @@ services:
       S3_BUCKET: ${S3_BUCKET:?}
       AWS_REGION: ${AWS_REGION:?}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
-      BE_BASE_URL: ${BE_BASE_URL:-http://be:8080}
+      BE_BASE_URL: ${BE_BASE_URL:?}
       BE_CONTEXT_TIMEOUT_SECONDS: ${BE_CONTEXT_TIMEOUT_SECONDS:-5.0}
       FEEDBACK_DEMO_MODE: ${FEEDBACK_DEMO_MODE:-false}
       FEEDBACK_WINDOW_MAX_SEGMENTS: ${FEEDBACK_WINDOW_MAX_SEGMENTS:-8}
@@ -71,13 +71,6 @@ services:
       RERANK_TOP_N: ${RERANK_TOP_N:-10}
     ports:
       - "${MEETBOWL_AI_BIND_ADDRESS:-127.0.0.1}:${MEETBOWL_AI_PORT:-8000}:8000"
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
     healthcheck:
       test:
         [

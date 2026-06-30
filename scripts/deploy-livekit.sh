@@ -7,10 +7,7 @@ INFRA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_DIR="${INFRA_DIR}/.runtime"
 
 AWS_REGION="${AWS_REGION:?AWS_REGION is required}"
-ECR_REPOSITORY="${ECR_REPOSITORY:?ECR_REPOSITORY is required}"
-IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG is required}"
 SSM_SHARED_PREFIX="${SSM_SHARED_PREFIX:-/meetbowl/prod/shared}"
-SSM_AI_PREFIX="${SSM_AI_PREFIX:-/meetbowl/prod/ai}"
 
 mkdir -p "${RUNTIME_DIR}"
 
@@ -36,11 +33,9 @@ write_ssm_env_file() {
 }
 
 write_ssm_env_file "${SSM_SHARED_PREFIX}" "${RUNTIME_DIR}/shared.env"
-write_ssm_env_file "${SSM_AI_PREFIX}" "${RUNTIME_DIR}/ai.env"
 
 set -a
 source "${RUNTIME_DIR}/shared.env"
-source "${RUNTIME_DIR}/ai.env"
 set +a
 
 require_env() {
@@ -52,47 +47,27 @@ require_env() {
 }
 
 for key in \
-  INTERNAL_TOKEN \
-  BE_BASE_URL \
-  GEMINI_API_KEY \
-  OPENAI_API_KEY \
-  RABBITMQ_URL \
-  REDIS_URL \
-  QDRANT_URL \
-  S3_BUCKET \
-  AWS_REGION
+  LIVEKIT_API_KEY \
+  LIVEKIT_API_SECRET \
+  LIVEKIT_NODE_IP
 do
   require_env "${key}"
 done
 
-AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query 'Account' --output text)"
-ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-MEETBOWL_AI_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-export MEETBOWL_AI_IMAGE
-
-aws ecr get-login-password --region "${AWS_REGION}" \
-  | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
-
 docker compose \
-  -f "${INFRA_DIR}/ai/compose.prod.yml" \
+  -f "${INFRA_DIR}/livekit/compose.prod.yml" \
   config -q
 
 docker compose \
-  -f "${INFRA_DIR}/ai/compose.prod.yml" \
-  pull ai
-
-docker compose \
-  -f "${INFRA_DIR}/ai/compose.prod.yml" \
-  up -d ai
-
-AI_PORT="${MEETBOWL_AI_PORT:-8000}"
+  -f "${INFRA_DIR}/livekit/compose.prod.yml" \
+  up -d
 
 for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${AI_PORT}/api/v1/health/ready" >/dev/null; then
+  if bash -c "</dev/tcp/127.0.0.1/${LIVEKIT_HTTP_PORT:-7880}" 2>/dev/null; then
     exit 0
   fi
   sleep 2
 done
 
-echo "smoke test failed: ai readiness endpoint did not respond in time" >&2
+echo "smoke test failed: livekit port did not open in time" >&2
 exit 1

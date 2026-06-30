@@ -13,7 +13,7 @@ services:
       OPENAI_REALTIME_TRANSLATION_MODEL: ${OPENAI_REALTIME_TRANSLATION_MODEL:-gpt-realtime-translate}
       OPENAI_REALTIME_TRANSCRIPTION_MODEL: ${OPENAI_REALTIME_TRANSCRIPTION_MODEL:-gpt-realtime-whisper}
       OPENAI_REALTIME_TRANSCRIPTION_DELAY: ${OPENAI_REALTIME_TRANSCRIPTION_DELAY:-medium}
-      LIVEKIT_URL: ${LIVEKIT_URL:-http://livekit:7880}
+      LIVEKIT_URL: ${LIVEKIT_URL:?}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?}
       LIVEKIT_AGENT_IDENTITY_PREFIX: ${LIVEKIT_AGENT_IDENTITY_PREFIX:-meetbowl-stt}
@@ -32,11 +32,6 @@ services:
       TRACK_SWITCH_GRACE_MS: ${TRACK_SWITCH_GRACE_MS:-120}
     ports:
       - "${MEETBOWL_STT_BIND_ADDRESS:-127.0.0.1}:${MEETBOWL_STT_PORT:-3000}:3000"
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test:
         [

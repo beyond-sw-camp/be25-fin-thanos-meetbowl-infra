@@ -6,18 +6,28 @@ Meetbowl 로컬 개발에 필요한 공용 런타임을 Docker Compose로 실행
 
 운영 배포 구조를 확정한 문서는 [docs/production-deployment-architecture.md](./docs/production-deployment-architecture.md) 를 참고한다.
 
-운영 compose는 `shared/compose.prod.yml`, `shared/compose.api.prod.yml`와 서비스별 overlay(`be/compose.prod.yml`, `be-api/compose.prod.yml`, `be-worker/compose.prod.yml` 등)로 분리한다.
-운영 배포 스크립트는 `scripts/deploy-be.sh`, `scripts/deploy-be-api.sh`, `scripts/deploy-be-worker.sh`, `scripts/deploy-be-split.sh`처럼 infra 레포 루트를 기준으로 실행한다.
+운영 compose는 역할별로 분리한다.
+
+- fallback BE: `shared/compose.prod.yml` + `be/compose.prod.yml`
+- API ASG: `shared/compose.api.prod.yml` + `be-api/compose.prod.yml`
+- Worker EC2: `be-worker/compose.prod.yml`
+- AI EC2: `ai/compose.prod.yml`
+- STT EC2: `stt/compose.prod.yml`
+- LiveKit EC2: `livekit/compose.prod.yml`
+- Search EC2: `search/compose.prod.yml`
+
+운영 배포 스크립트는 `scripts/deploy-be.sh`, `scripts/deploy-be-api.sh`, `scripts/deploy-be-worker.sh`,
+`scripts/deploy-ai.sh`, `scripts/deploy-stt.sh`, `scripts/deploy-livekit.sh`,
+`scripts/deploy-search.sh`를 infra 레포 루트 기준으로 실행한다.
 
 ## 구성
 
 | Service | Port | Owner / Purpose |
 |---|---:|---|
 | MariaDB | `3306` | `meetbowl-be` 전용 업무 DB |
-| Redis | `6379` | 캐시, 짧은 TTL 상태, Redis Stream |
-| RabbitMQ | `5672`, `15672` | 반드시 처리되어야 하는 비동기 작업 큐 |
 | LiveKit | `7880`, `7881`, `7882/udp` | 회의 media session, DataChannel |
 | Qdrant | `6333`, `6334` | `meetbowl-ai` 전용 벡터 저장소 |
+| Elasticsearch | `9200` | `meetbowl-be` 사용자 검색 인덱스 |
 | S3 | external | 파일 원본 저장소 |
 
 MinIO는 실행하지 않는다. 파일 원본은 외부 S3 또는 S3 호환 스토리지를 사용하고, 권한 검사와 파일 메타데이터 저장은 `meetbowl-be`가 담당한다.
@@ -28,6 +38,22 @@ MinIO는 실행하지 않는다. 파일 원본은 외부 S3 또는 S3 호환 스
 cp .env.example .env
 docker compose up -d
 ```
+
+위 명령은 로컬 개발용이다. 운영은 역할별 EC2에서 각 deploy 스크립트를 사용한다.
+
+## 운영 역할별 실행
+
+| 역할 | 실행 파일 |
+|---|---|
+| Fallback BE EC2 | `scripts/deploy-be.sh` |
+| API ASG instance | `scripts/deploy-be-api.sh` |
+| Worker EC2 | `scripts/deploy-be-worker.sh` |
+| AI EC2 | `scripts/deploy-ai.sh` |
+| STT EC2 | `scripts/deploy-stt.sh` |
+| LiveKit EC2 | `scripts/deploy-livekit.sh` |
+| Search EC2 | `scripts/deploy-search.sh` |
+
+운영에서는 `Redis`를 ElastiCache, `RabbitMQ`를 Amazon MQ로 사용하므로 운영 compose에는 포함하지 않는다.
 
 LiveKit/STT를 같이 테스트할 때는 현재 호스트 IP를 자동 주입하는 wrapper를 우선 사용한다.
 

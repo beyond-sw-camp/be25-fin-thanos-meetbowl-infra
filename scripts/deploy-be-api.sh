@@ -70,8 +70,6 @@ require_file() {
 }
 
 for key in \
-  RABBITMQ_DEFAULT_USER \
-  RABBITMQ_DEFAULT_PASS \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
   MEETBOWL_DB_URL \

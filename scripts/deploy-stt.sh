@@ -66,6 +66,7 @@ for key in \
   OPENAI_API_KEY \
   LIVEKIT_API_KEY \
   LIVEKIT_API_SECRET \
+  LIVEKIT_URL \
   RABBITMQ_URL \
   REDIS_URL
 do
@@ -81,17 +82,14 @@ aws ecr get-login-password --region "${AWS_REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/stt/compose.prod.yml" \
   config -q
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/stt/compose.prod.yml" \
   pull stt
 
 docker compose \
-  -f "${INFRA_DIR}/shared/compose.prod.yml" \
   -f "${INFRA_DIR}/stt/compose.prod.yml" \
   up -d stt
 

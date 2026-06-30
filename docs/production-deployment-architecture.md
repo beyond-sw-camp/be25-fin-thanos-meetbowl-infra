@@ -34,8 +34,8 @@
 | meetbowl-be | Fallback EC2 | 기존 단일 배포 fallback 모드(`all`) |
 | meetbowl-ai | AI EC2 | 회의록 생성, 임베딩, RAG, 실시간 피드백 |
 | meetbowl-stt | STT EC2 | LiveKit 오디오 수신, STT, transcript 이벤트 발행 |
-| rabbitmq / redis / elasticsearch / qdrant | Infra EC2 | 내부 공용 런타임 |
 | livekit | LiveKit EC2 | 회의 media session, DataChannel |
+| elasticsearch / qdrant | Search EC2 | 사용자 검색 인덱스, 벡터 저장소 |
 
 MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 
@@ -60,9 +60,8 @@ MariaDB는 EC2에 두지 않고 RDS를 사용한다.
 - `meetbowl-be`
 - `meetbowl-ai`
 - `meetbowl-stt`
-- `rabbitmq`
-- `redis`
 - `qdrant`
+- `elasticsearch`
 
 운영 보안그룹 기준:
 
@@ -97,7 +96,7 @@ Frontend
 
 ```text
 meetbowl-be-worker
-  -> RabbitMQ
+  -> Amazon MQ
   -> meetbowl-ai
   -> meetbowl-be-worker
 ```
@@ -106,9 +105,9 @@ meetbowl-be-worker
 
 ```text
 meetbowl-stt
-  -> Redis Stream
+  -> ElastiCache Redis Stream
   -> meetbowl-ai
-  -> Redis Stream
+  -> ElastiCache Redis Stream
   -> meetbowl-stt
   -> LiveKit DataChannel
 ```
@@ -128,6 +127,8 @@ meetbowl-infra/
   be/compose.prod.yml
   be-api/compose.prod.yml
   be-worker/compose.prod.yml
+  livekit/compose.prod.yml
+  search/compose.prod.yml
   stt/compose.prod.yml
   nginx/
     prod.conf
@@ -137,11 +138,15 @@ meetbowl-infra/
     deploy-be-worker.sh
     deploy-be-split.sh
     deploy-stt.sh
+    deploy-livekit.sh
+    deploy-search.sh
 ```
 
 운영 compose 원칙:
 
 - `mariadb` 서비스는 제거하고 RDS endpoint를 사용한다.
+- `redis`, `rabbitmq` 서비스는 제거하고 ElastiCache / Amazon MQ endpoint를 사용한다.
+- `livekit`, `elasticsearch`, `qdrant`는 각 전용 compose에서만 실행한다.
 - 각 애플리케이션은 ECR image tag를 사용한다.
 - `depends_on`만으로 readiness를 보장하지 않고 healthcheck와 smoke test를 둔다.
 - 비밀값은 파일 커밋 없이 런타임 주입한다.
@@ -160,7 +165,6 @@ meetbowl-infra/
 /meetbowl/prod/be/MEETBOWL_DB_PASSWORD
 /meetbowl/prod/be/MEETBOWL_JWT_SECRET
 /meetbowl/prod/be/MEETBOWL_INTERNAL_TOKEN
-/meetbowl/prod/shared/RABBITMQ_DEFAULT_PASS
 /meetbowl/prod/shared/LIVEKIT_API_SECRET
 ```
 
@@ -174,7 +178,7 @@ GitHub Actions에는 전체 애플리케이션 비밀값을 넣지 않고, AWS �
 
 운영 전환 전에 해결해야 하는 현재 갭은 아래와 같다.
 
-1. `meetbowl-infra/docker-compose.yml`은 로컬 개발용이며 `mariadb`를 포함한다.
+1. `meetbowl-infra/docker-compose.yml`은 로컬 개발용이며 `mariadb`, `redis`, `rabbitmq`를 포함한다.
 2. 운영 Parameter Store key 목록과 EC2 초기 세팅 문서는 서버별로 계속 확장해야 한다.
 
 ---
@@ -224,4 +228,4 @@ API ASG는 ALB 뒤에서 HTTP만 수신한다. TLS 종료는 ALB/ACM에서 처�
 
 ## 다음 단계
 
-2단계는 `meetbowl-ai`, `meetbowl-stt`, `meetbowl-be` 운영 compose/env 계약과 EC2 배포 스크립트를 실제 값으로 검증하는 단계다.
+2단계는 `meetbowl-ai`, `meetbowl-stt`, `meetbowl-be`, `livekit`, `search` 운영 compose/env 계약과 EC2 배포 스크립트를 실제 값으로 검증하는 단계다.
